@@ -1,0 +1,16 @@
+{
+  "name": "寶貝英語大冒險 - Spelling Bee",
+  "short_name": "SpellingBee",
+  "description": "國小一年級小蜜蜂英語拼字與自然發音練習",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f0fdf4",
+  "theme_color": "#22c55e",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐝</text></svg>",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

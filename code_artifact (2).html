@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌟 寶貝英語大冒險 🌟</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    <!-- 加入 Confetti 煙火特效庫 -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #f0fdf4; /* 淺綠色背景，保護眼睛 */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* 隱藏捲軸但保持可捲動 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+        /* 點擊按鈕的縮放回饋效果 */
+        .btn-press {
+            transition: transform 0.1s, filter 0.1s;
+        }
+        .btn-press:hover {
+            filter: brightness(0.95);
+        }
+        .btn-press:active {
+            transform: scale(0.92);
+            filter: brightness(0.9);
+        }
+
+        /* 注音符號樣式調整，確保清晰 */
+        ruby {
+            ruby-position: over;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #1e293b;
+        }
+        rt {
+            font-size: 0.8rem;
+            color: #64748b;
+            font-weight: normal;
+        }
+
+        /* 字母發音時的高亮動畫 */
+        .letter-highlight {
+            color: #ef4444 !important; /* 紅色 */
+            transform: scale(1.3) translateY(-5px);
+            text-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .letter-transition {
+            transition: all 0.2s ease-in-out;
+            display: inline-block;
+        }
+
+        /* 錯題怪獸吃掉單字的動畫 */
+        @keyframes monsterEat {
+            0% { transform: scale(1) rotate(0deg); opacity: 1; }
+            20% { transform: scale(1.1) rotate(-10deg); color: #ef4444; }
+            40% { transform: scale(1.1) rotate(10deg); }
+            100% { transform: scale(0) translate(0, -200px); opacity: 0; filter: blur(5px); }
+        }
+        .animate-eat {
+            animation: monsterEat 1s cubic-bezier(0.5, 0, 0.5, 1) forwards;
+            pointer-events: none;
+        }
+
+        /* 簡單的彈跳進場動畫 */
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            60% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .pop-in {
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <div class="max-w-4xl mx-auto min-h-screen flex flex-col p-4 sm:p-6 pb-24">
+        
+        <!-- 表頭 -->
+        <header class="flex justify-between items-center mb-6 bg-white p-4 rounded-3xl shadow-sm border-2 border-green-100">
+            <h1 class="text-2xl sm:text-3xl font-black text-green-600 flex items-center gap-2">
+                🌟 英語小學堂
+            </h1>
+            <select id="weekSelector" class="text-lg sm:text-xl font-bold bg-green-100 text-green-800 px-4 py-2 rounded-2xl border-none outline-none cursor-pointer hover:bg-green-200 transition-colors">
+                <option value="SpellingBee2" selected>Spelling Bee 2</option>
+                <option value="SpellingBee1">Spelling Bee 1</option>
+                <option value="Unit1">Unit 1 複習</option>
+                <option value="3">第 3 週</option>
+                <option value="4">第 4 週</option>
+                <option value="5">第 5 週</option>
+                <option value="6">第 6 週</option>
+                <option value="7">第 7 週</option>
+                <option value="8">第 8 週</option>
+                <option value="9">第 9 週</option>
+            </select>
+        </header>
+
+        <!-- 導覽列 (Tabs) -->
+        <nav class="grid grid-cols-4 gap-2 sm:gap-4 mb-8 pop-in" style="animation-delay: 0.2s;">
+            <button onclick="switchTab('learn')" id="tab-learn" class="tab-btn active bg-blue-500 text-white flex flex-col items-center justify-center p-3 sm:p-4 rounded-3xl shadow-md btn-press opacity-50 transition-opacity duration-300">
+                <span class="text-3xl mb-1 hover:animate-bounce">📖</span>
+                <span class="font-bold text-sm sm:text-base">學習單字</span>
+            </button>
+            <button onclick="switchTab('speak')" id="tab-speak" class="tab-btn bg-yellow-400 text-yellow-900 flex flex-col items-center justify-center p-3 sm:p-4 rounded-3xl shadow-md btn-press opacity-50 transition-opacity duration-300">
+                <span class="text-3xl mb-1 hover:animate-bounce">🗣️</span>
+                <span class="font-bold text-sm sm:text-base">看圖口說</span>
+            </button>
+            <button onclick="switchTab('write')" id="tab-write" class="tab-btn bg-purple-500 text-white flex flex-col items-center justify-center p-3 sm:p-4 rounded-3xl shadow-md btn-press opacity-50 transition-opacity duration-300">
+                <span class="text-3xl mb-1 hover:animate-bounce">✍️</span>
+                <span class="font-bold text-sm sm:text-base">聽音拼寫</span>
+            </button>
+            <button onclick="switchTab('review')" id="tab-review" class="tab-btn bg-rose-500 text-white flex flex-col items-center justify-center p-3 sm:p-4 rounded-3xl shadow-md btn-press opacity-50 transition-opacity duration-300 relative">
+                <span class="text-3xl mb-1 hover:animate-bounce">👾</span>
+                <span class="font-bold text-sm sm:text-base">怪獸本</span>
+                <span id="monster-badge" class="absolute -top-2 -right-2 bg-white text-rose-500 font-black rounded-full w-8 h-8 flex items-center justify-center border-2 border-rose-500 shadow-sm hidden">0</span>
+            </button>
+        </nav>
+
+        <!-- 主要內容區域 -->
+        <main id="main-content" class="flex-grow flex flex-col pop-in" style="animation-delay: 0.3s;">
+            <!-- 內容將由 JS 動態渲染 -->
+        </main>
+
+    </div>
+
+    <script>
+        // 單字資料庫
+        const vocabularyData = {
+            'SpellingBee2': [
+                { id: 'sb2_1', word: "cold", chinese: [{c:"冷", p:"ㄌㄥˇ"}], emoji: "🥶❄️", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"o", sound:"oʊ"}, {letters:"l", sound:"l"}, {letters:"d", sound:"d"}] },
+                { id: 'sb2_2', word: "color", chinese: [{c:"顏", p:"ㄧㄢˊ"}, {c:"色", p:"ㄙㄜˋ"}], emoji: "🎨🌈", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"o", sound:"ʌ"}, {letters:"l", sound:"l"}, {letters:"or", sound:"ər"}] },
+                { id: 'sb2_3', word: "cookie", chinese: [{c:"餅", p:"ㄅㄧㄥˇ"}, {c:"乾", p:"ㄍㄢ"}], emoji: "🍪🍫", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"oo", sound:"ʊ"}, {letters:"k", sound:"k"}, {letters:"ie", sound:"i"}] },
+                { id: 'sb2_4', word: "cow", chinese: [{c:"乳", p:"ㄖㄨˇ"}, {c:"牛", p:"ㄋㄧㄡˊ"}], emoji: "🐮🥛", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"ow", sound:"aʊ"}] },
+                { id: 'sb2_5', word: "cub", chinese: [{c:"幼", p:"ㄧㄡˋ"}, {c:"獸", p:"ㄕㄡˋ"}], emoji: "🐻🦁", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"u", sound:"ʌ"}, {letters:"b", sound:"b"}] },
+                { id: 'sb2_6', word: "day", chinese: [{c:"白", p:"ㄅㄞˊ"}, {c:"天", p:"ㄊㄧㄢ"}], emoji: "☀️☀️", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"ay", sound:"eɪ"}] },
+                { id: 'sb2_7', word: "dot", chinese: [{c:"圓", p:"ㄩㄢˊ"}, {c:"點", p:"ㄉㄧㄢˇ"}], emoji: "🔴⚫", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"o", sound:"ɑː"}, {letters:"t", sound:"t"}] },
+                { id: 'sb2_8', word: "dove", chinese: [{c:"鴿", p:"ㄍㄜ"}, {c:"子", p:"ㄗ˙"}], emoji: "🕊️🌿", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"o", sound:"ʌ"}, {letters:"v", sound:"v"}, {letters:"e", sound:""}] },
+                { id: 'sb2_9', word: "easy", chinese: [{c:"簡", p:"ㄐㄧㄢˇ"}, {c:"單", p:"ㄉㄢ"}], emoji: "👌✨", phonicsChunks: [{letters:"ea", sound:"iː"}, {letters:"s", sound:"z"}, {letters:"y", sound:"i"}] },
+                { id: 'sb2_10', word: "elf", chinese: [{c:"精", p:"ㄐㄧㄥ"}, {c:"靈", p:"ㄌㄧㄥˊ"}], emoji: "🧝🧚", phonicsChunks: [{letters:"e", sound:"e"}, {letters:"l", sound:"l"}, {letters:"f", sound:"f"}] },
+                { id: 'sb2_11', word: "fall", chinese: [{c:"秋", p:"ㄑㄧㄡ"}, {c:"天", p:"ㄊㄧㄢ"}], emoji: "🍂🍁", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"a", sound:"ɔː"}, {letters:"ll", sound:"l"}] },
+                { id: 'sb2_12', word: "fly", chinese: [{c:"飛", p:"ㄈㄟ"}], emoji: "✈️🕊️", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"l", sound:"l"}, {letters:"y", sound:"aɪ"}] },
+                { id: 'sb2_13', word: "fun", chinese: [{c:"好", p:"ㄏㄠˇ"}, {c:"玩", p:"ㄨㄢˊ"}], emoji: "🥳🎉", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"u", sound:"ʌ"}, {letters:"n", sound:"n"}] },
+                { id: 'sb2_14', word: "gum", chinese: [{c:"口", p:"ㄎㄡˇ"}, {c:"香", p:"ㄒㄧㄤ"}, {c:"糖", p:"ㄊㄤˊ"}], emoji: "🍬🧼", phonicsChunks: [{letters:"g", sound:"g"}, {letters:"u", sound:"ʌ"}, {letters:"m", sound:"m"}] },
+                { id: 'sb2_15', word: "gun", chinese: [{c:"水", p:"ㄕㄨㄟˇ"}, {c:"槍", p:"ㄑㄧㄤ"}], emoji: "🔫💦", phonicsChunks: [{letters:"g", sound:"g"}, {letters:"u", sound:"ʌ"}, {letters:"n", sound:"n"}] }
+            ],
+            'SpellingBee1': [
+                { id: 'sb1_1', word: "act", chinese: [{c:"行", p:"ㄒㄧㄥˊ"}, {c:"動", p:"ㄉㄨㄥˋ"}], emoji: "🎬🏃", phonicsChunks: [{letters:"a", sound:"æ"}, {letters:"c", sound:"k"}, {letters:"t", sound:"t"}] },
+                { id: 'sb1_2', word: "add", chinese: [{c:"增", p:"ㄗㄥ"}, {c:"加", p:"ㄐㄧㄚ"}], emoji: "➕🔢", phonicsChunks: [{letters:"a", sound:"æ"}, {letters:"dd", sound:"d"}] },
+                { id: 'sb1_3', word: "air", chinese: [{c:"空", p:"ㄎㄨㄥ"}, {c:"氣", p:"ㄑㄧˋ"}], emoji: "💨🌬️", phonicsChunks: [{letters:"air", sound:"er"}] },
+                { id: 'sb1_4', word: "any", chinese: [{c:"任", p:"ㄖㄣˋ"}, {c:"何", p:"ㄏㄜˊ"}], emoji: "❓🤷", phonicsChunks: [{letters:"a", sound:"e"}, {letters:"n", sound:"n"}, {letters:"y", sound:"i"}] },
+                { id: 'sb1_5', word: "ape", chinese: [{c:"猿", p:"ㄩㄢˊ"}, {c:"猴", p:"ㄏㄡˊ"}], emoji: "🦍🐒", phonicsChunks: [{letters:"a", sound:"eɪ"}, {letters:"p", sound:"p"}, {letters:"e", sound:""}] },
+                { id: 'sb1_6', word: "away", chinese: [{c:"離", p:"ㄌㄧˊ"}, {c:"開", p:"ㄎㄞ"}], emoji: "🏃‍♂️👋", phonicsChunks: [{letters:"a", sound:"ə"}, {letters:"w", sound:"w"}, {letters:"ay", sound:"eɪ"}] },
+                { id: 'sb1_7', word: "barn", chinese: [{c:"穀", p:"ㄍㄨˇ"}, {c:"倉", p:"ㄘㄤ"}], emoji: "🏚️🐎", phonicsChunks: [{letters:"b", sound:"b"}, {letters:"ar", sound:"ɑːr"}, {letters:"n", sound:"n"}] },
+                { id: 'sb1_8', word: "bay", chinese: [{c:"海", p:"ㄏㄞˇ"}, {c:"灣", p:"ㄨㄢ"}], emoji: "🌊🏖️", phonicsChunks: [{letters:"b", sound:"b"}, {letters:"ay", sound:"eɪ"}] },
+                { id: 'sb1_9', word: "bunny", chinese: [{c:"小", p:"ㄒㄧㄠˇ"}, {c:"兔", p:"ㄊㄨˋ"}, {c:"子", p:"ㄗ˙"}], emoji: "🐰🥕", phonicsChunks: [{letters:"b", sound:"b"}, {letters:"u", sound:"ʌ"}, {letters:"nn", sound:"n"}, {letters:"y", sound:"i"}] },
+                { id: 'sb1_10', word: "cab", chinese: [{c:"計", p:"ㄐㄧˋ"}, {c:"程", p:"ㄔㄥˊ"}, {c:"車", p:"ㄔㄜ"}], emoji: "🚕🚖", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"a", sound:"æ"}, {letters:"b", sound:"b"}] },
+                { id: 'sb1_11', word: "calf", chinese: [{c:"小", p:"ㄒㄧㄠˇ"}, {c:"牛", p:"ㄋㄧㄡˊ"}], emoji: "🐄🍼", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"al", sound:"æ"}, {letters:"f", sound:"f"}] },
+                { id: 'sb1_12', word: "candy", chinese: [{c:"糖", p:"ㄊㄤˊ"}, {c:"果", p:"ㄍㄨㄛˇ"}], emoji: "🍬🍭", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"a", sound:"æ"}, {letters:"n", sound:"n"}, {letters:"d", sound:"d"}, {letters:"y", sound:"i"}] },
+                { id: 'sb1_13', word: "care", chinese: [{c:"關", p:"ㄍㄨㄢ"}, {c:"心", p:"ㄒㄧㄣ"}], emoji: "❤️🫂", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"ar", sound:"er"}, {letters:"e", sound:""}] },
+                { id: 'sb1_14', word: "child", chinese: [{c:"孩", p:"ㄏㄞˊ"}, {c:"子", p:"ㄗ˙"}], emoji: "🧒🧸", phonicsChunks: [{letters:"ch", sound:"tʃ"}, {letters:"i", sound:"aɪ"}, {letters:"l", sound:"l"}, {letters:"d", sound:"d"}] },
+                { id: 'sb1_15', word: "city", chinese: [{c:"城", p:"ㄔㄥˊ"}, {c:"市", p:"ㄕˋ"}], emoji: "🏙️🌆", phonicsChunks: [{letters:"c", sound:"s"}, {letters:"i", sound:"ɪ"}, {letters:"t", sound:"t"}, {letters:"y", sound:"i"}] }
+            ],
+            'Unit1': [
+                { id: 'u1_1', word: "girl", chinese: [{c:"女", p:"ㄋㄩˇ"}, {c:"孩", p:"ㄏㄞˊ"}], emoji: "👧👩", phonicsChunks: [{letters:"g", sound:"g"}, {letters:"ir", sound:"ɜːr"}, {letters:"l", sound:"l"}] },
+                { id: 'u1_2', word: "desk", chinese: [{c:"書", p:"ㄕㄨ"}, {c:"桌", p:"ㄓㄨㄛ"}], emoji: "🪑📚", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"e", sound:"e"}, {letters:"s", sound:"s"}, {letters:"k", sound:"k"}] },
+                { id: 'u1_3', word: "coat", chinese: [{c:"外", p:"ㄨㄞˋ"}, {c:"套", p:"ㄊㄠˋ"}], emoji: "🧥❄️", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"oa", sound:"oʊ"}, {letters:"t", sound:"t"}] },
+                { id: 'u1_4', word: "balloon", chinese: [{c:"氣", p:"ㄑㄧˋ"}, {c:"球", p:"ㄑㄧㄡˊ"}], emoji: "🎈🎈", phonicsChunks: [{letters:"b", sound:"b"}, {letters:"a", sound:"ə"}, {letters:"ll", sound:"l"}, {letters:"oo", sound:"uː"}, {letters:"n", sound:"n"}] },
+                { id: 'u1_5', word: "hammer", chinese: [{c:"鐵", p:"ㄊㄧㄝˇ"}, {c:"錘", p:"ㄔㄨㄟˊ"}], emoji: "🔨🛠️", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"a", sound:"æ"}, {letters:"mm", sound:"m"}, {letters:"er", sound:"ər"}] },
+                { id: 'u1_6', word: "ant", chinese: [{c:"螞", p:"ㄇㄚˇ"}, {c:"蟻", p:"ㄧˇ"}], emoji: "🐜🐜", phonicsChunks: [{letters:"a", sound:"æ"}, {letters:"n", sound:"n"}, {letters:"t", sound:"t"}] },
+                { id: 'u1_7', word: "elbow", chinese: [{c:"手", p:"ㄕㄡˇ"}, {c:"肘", p:"ㄓㄡˇ"}], emoji: "🦾💪", phonicsChunks: [{letters:"el", sound:"el"}, {letters:"b", sound:"b"}, {letters:"ow", sound:"oʊ"}] },
+                { id: 'u1_8', word: "foot", chinese: [{c:"腳", p:"ㄐㄧㄠˇ"}], emoji: "🦶👟", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"oo", sound:"ʊ"}, {letters:"t", sound:"t"}] },
+                { id: 'u1_9', word: "book", chinese: [{c:"書", p:"ㄕㄨ"}, {c:"本", p:"ㄅㄣˇ"}], emoji: "📖📚", phonicsChunks: [{letters:"b", sound:"b"}, {letters:"oo", sound:"ʊ"}, {letters:"k", sound:"k"}] },
+                { id: 'u1_10', word: "cap", chinese: [{c:"鴨", p:"ㄧㄚ"}, {c:"舌", p:"ㄕㄜˊ"}, {c:"帽", p:"ㄇㄠˋ"}], emoji: "🧢⚾", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"a", sound:"æ"}, {letters:"p", sound:"p"}] },
+                { id: 'u1_11', word: "belt", chinese: [{c:"皮", p:"ㄆㄧˊ"}, {c:"帶", p:"ㄉㄞˋ"}], emoji: "👖➰", phonicsChunks: [{letters:"b", sound:"b"}, {letters:"e", sound:"e"}, {letters:"l", sound:"l"}, {letters:"t", sound:"t"}] },
+                { id: 'u1_12', word: "three", chinese: [{c:"三", p:"ㄙㄢ"}], emoji: "3️⃣🤟", phonicsChunks: [{letters:"th", sound:"θ"}, {letters:"r", sound:"r"}, {letters:"ee", sound:"iː"}] },
+                { id: 'u1_13', word: "dress", chinese: [{c:"洋", p:"ㄧㄤˊ"}, {c:"裝", p:"ㄓㄨㄤ"}], emoji: "👗👸", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"r", sound:"r"}, {letters:"e", sound:"e"}, {letters:"ss", sound:"s"}] },
+                { id: 'u1_14', word: "apple", chinese: [{c:"蘋", p:"ㄆㄧㄥˊ"}, {c:"果", p:"ㄍㄨㄛˇ"}], emoji: "🍎🍏", phonicsChunks: [{letters:"a", sound:"æ"}, {letters:"pp", sound:"p"}, {letters:"le", sound:"l"}] },
+                { id: 'u1_15', word: "six", chinese: [{c:"六", p:"ㄌㄧㄡˋ"}], emoji: "6️⃣🤙", phonicsChunks: [{letters:"s", sound:"s"}, {letters:"i", sound:"ɪ"}, {letters:"x", sound:"ks"}] },
+                { id: 'u1_16', word: "scissors", chinese: [{c:"剪", p:"ㄐㄧㄢˇ"}, {c:"刀", p:"ㄉㄠ"}], emoji: "✂️✂️", phonicsChunks: [{letters:"s", sound:"s"}, {letters:"c", sound:"s"}, {letters:"i", sound:"ɪ"}, {letters:"ss", sound:"z"}, {letters:"or", sound:"ər"}, {letters:"s", sound:"z"}] },
+                { id: 'u1_17', word: "monkey", chinese: [{c:"猴", p:"ㄏㄡˊ"}, {c:"子", p:"ㄗ˙"}], emoji: "🐒🍌", phonicsChunks: [{letters:"m", sound:"m"}, {letters:"on", sound:"ʌn"}, {letters:"k", sound:"k"}, {letters:"ey", sound:"iː"}] },
+                { id: 'u1_18', word: "house", chinese: [{c:"房", p:"ㄈㄤˊ"}, {c:"子", p:"ㄗ˙"}], emoji: "🏠🏡", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"ou", sound:"aʊ"}, {letters:"se", sound:"s"}] },
+                { id: 'u1_19', word: "feather", chinese: [{c:"羽", p:"ㄩˇ"}, {c:"毛", p:"ㄇㄠˊ"}], emoji: "🪶🦚", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"ea", sound:"e"}, {letters:"th", sound:"ð"}, {letters:"er", sound:"ər"}] },
+                { id: 'u1_20', word: "eight", chinese: [{c:"八", p:"ㄅㄚ"}], emoji: "8️⃣🎱", phonicsChunks: [{letters:"eigh", sound:"eɪ"}, {letters:"t", sound:"t"}] },
+                { id: 'u1_21', word: "hat", chinese: [{c:"帽", p:"ㄇㄠˋ"}, {c:"子", p:"ㄗ˙"}], emoji: "🎩👒", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"a", sound:"æ"}, {letters:"t", sound:"t"}] },
+                { id: 'u1_22', word: "kangaroo", chinese: [{c:"袋", p:"ㄉㄞˋ"}, {c:"鼠", p:"ㄕㄨˇ"}], emoji: "🦘🦘", phonicsChunks: [{letters:"k", sound:"k"}, {letters:"a", sound:"æ"}, {letters:"ng", sound:"ŋ"}, {letters:"a", sound:"ə"}, {letters:"r", sound:"r"}, {letters:"oo", sound:"uː"}] },
+                { id: 'u1_23', word: "seven", chinese: [{c:"七", p:"ㄑㄧ"}], emoji: "7️⃣🍀", phonicsChunks: [{letters:"s", sound:"s"}, {letters:"e", sound:"e"}, {letters:"v", sound:"v"}, {letters:"e", sound:"ə"}, {letters:"n", sound:"n"}] },
+                { id: 'u1_24', word: "tiger", chinese: [{c:"老", p:"ㄌㄠˇ"}, {c:"虎", p:"ㄏㄨˇ"}], emoji: "🐯🐅", phonicsChunks: [{letters:"t", sound:"t"}, {letters:"i", sound:"aɪ"}, {letters:"g", sound:"g"}, {letters:"er", sound:"ər"}] },
+                { id: 'u1_25', word: "two", chinese: [{c:"二", p:"ㄦˋ"}], emoji: "2️⃣✌️", phonicsChunks: [{letters:"t", sound:"t"}, {letters:"w", sound:"w"}, {letters:"o", sound:"uː"}] },
+                { id: 'u1_26', word: "fish", chinese: [{c:"魚", p:"ㄩˊ"}], emoji: "🐟🐠", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"i", sound:"ɪ"}, {letters:"sh", sound:"ʃ"}] },
+                { id: 'u1_27', word: "door", chinese: [{c:"門", p:"ㄇㄣˊ"}], emoji: "🚪🚪", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"oor", sound:"ɔːr"}] },
+                { id: 'u1_28', word: "five", chinese: [{c:"五", p:"ㄨˇ"}], emoji: "5️⃣✋", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"i", sound:"aɪ"}, {letters:"v", sound:"v"}, {letters:"e", sound:""}] },
+                { id: 'u1_29', word: "lamp", chinese: [{c:"檯", p:"ㄊㄞˊ"}, {c:"燈", p:"ㄉㄥ"}], emoji: "💡🛋️", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"a", sound:"æ"}, {letters:"m", sound:"m"}, {letters:"p", sound:"p"}] },
+                { id: 'u1_30', word: "carrot", chinese: [{c:"胡", p:"ㄏㄨˊ"}, {c:"蘿", p:"ㄌㄨㄛˊ"}, {c:"蔔", p:"ㄅㄛ˙"}], emoji: "🥕🐰", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"a", sound:"æ"}, {letters:"rr", sound:"r"}, {letters:"o", sound:"ə"}, {letters:"t", sound:"t"}] },
+                { id: 'u1_31', word: "elephant", chinese: [{c:"大", p:"ㄉㄚˋ"}, {c:"象", p:"ㄒㄧㄤˋ"}], emoji: "🐘🦒", phonicsChunks: [{letters:"e", sound:"e"}, {letters:"le", sound:"lə"}, {letters:"ph", sound:"f"}, {letters:"a", sound:"ə"}, {letters:"n", sound:"n"}, {letters:"t", sound:"t"}] },
+                { id: 'u1_32', word: "bear", chinese: [{c:"熊", p:"ㄒㄩㄥˊ"}], emoji: "🐻🍯", phonicsChunks: [{letters:"b", sound:"b"}, {letters:"ear", sound:"er"}] },
+                { id: 'u1_33', word: "insect", chinese: [{c:"昆", p:"ㄎㄨㄣ"}, {c:"蟲", p:"ㄔㄨㄥˊ"}], emoji: "🐛🐞", phonicsChunks: [{letters:"i", sound:"ɪ"}, {letters:"n", sound:"n"}, {letters:"s", sound:"s"}, {letters:"e", sound:"e"}, {letters:"c", sound:"k"}, {letters:"t", sound:"t"}] },
+                { id: 'u1_34', word: "nose", chinese: [{c:"鼻", p:"ㄅㄧˊ"}, {c:"子", p:"ㄗ˙"}], emoji: "👃👃", phonicsChunks: [{letters:"n", sound:"n"}, {letters:"o", sound:"oʊ"}, {letters:"s", sound:"z"}, {letters:"e", sound:""}] },
+                { id: 'u1_35', word: "doll", chinese: [{c:"洋", p:"ㄧㄤˊ"}, {c:"娃", p:"ㄨㄚˊ"}, {c:"娃", p:"ㄨㄚ˙"}], emoji: "🎎🧸", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"o", sound:"ɑː"}, {letters:"ll", sound:"l"}] },
+                { id: 'u1_36', word: "butterfly", chinese: [{c:"蝴", p:"ㄏㄨˊ"}, {c:"蝶", p:"ㄉㄧㄝˊ"}], emoji: "🦋🌸", phonicsChunks: [{letters:"b", sound:"b"}, {letters:"u", sound:"ʌ"}, {letters:"tt", sound:"t"}, {letters:"er", sound:"ər"}, {letters:"f", sound:"f"}, {letters:"l", sound:"l"}, {letters:"y", sound:"aɪ"}] },
+                { id: 'u1_37', word: "horse", chinese: [{c:"馬", p:"ㄇㄚˇ"}], emoji: "🐴🐎", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"or", sound:"ɔːr"}, {letters:"se", sound:"s"}] },
+                { id: 'u1_38', word: "corn", chinese: [{c:"玉", p:"ㄩˋ"}, {c:"米", p:"ㄇㄧˇ"}], emoji: "🌽🍿", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"or", sound:"ɔːr"}, {letters:"n", sound:"n"}] },
+                { id: 'u1_39', word: "boy", chinese: [{c:"男", p:"ㄋㄢˊ"}, {c:"孩", p:"ㄏㄞˊ"}], emoji: "👦🧢", phonicsChunks: [{letters:"b", sound:"b"}, {letters:"oy", sound:"ɔɪ"}] },
+                { id: 'u1_40', word: "fire", chinese: [{c:"火", p:"ㄏㄨㄛˇ"}], emoji: "🔥🚒", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"i", sound:"aɪ"}, {letters:"r", sound:"r"}, {letters:"e", sound:""}] },
+                { id: 'u1_41', word: "guitar", chinese: [{c:"吉", p:"ㄐㄧˊ"}, {c:"他", p:"ㄊㄚ"}], emoji: "🎸🎶", phonicsChunks: [{letters:"g", sound:"g"}, {letters:"ui", sound:"ɪ"}, {letters:"t", sound:"t"}, {letters:"ar", sound:"ɑːr"}] },
+                { id: 'u1_42', word: "sink", chinese: [{c:"水", p:"ㄕㄨㄟˇ"}, {c:"槽", p:"ㄘㄠˊ"}], emoji: "🚰🧼", phonicsChunks: [{letters:"s", sound:"s"}, {letters:"i", sound:"ɪ"}, {letters:"nk", sound:"ŋk"}] },
+                { id: 'u1_43', word: "fly", chinese: [{c:"蒼", p:"ㄘㄤ"}, {c:"蠅", p:"ㄧㄥˊ"}], emoji: "🪰🪰", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"l", sound:"l"}, {letters:"y", sound:"aɪ"}] },
+                { id: 'u1_44', word: "soap", chinese: [{c:"肥", p:"ㄈㄟˊ"}, {c:"皂", p:"ㄗㄠˋ"}], emoji: "🧼🛁", phonicsChunks: [{letters:"s", sound:"s"}, {letters:"oa", sound:"oʊ"}, {letters:"p", sound:"p"}] },
+                { id: 'u1_45', word: "piano", chinese: [{c:"鋼", p:"ㄍㄤ"}, {c:"琴", p:"ㄑㄧㄣˊ"}], emoji: "🎹🎵", phonicsChunks: [{letters:"p", sound:"p"}, {letters:"i", sound:"i"}, {letters:"a", sound:"æ"}, {letters:"n", sound:"n"}, {letters:"o", sound:"oʊ"}] },
+                { id: 'u1_46', word: "pillow", chinese: [{c:"枕", p:"ㄓㄣˇ"}, {c:"頭", p:"ㄊㄡˊ"}], emoji: "🛌😴", phonicsChunks: [{letters:"p", sound:"p"}, {letters:"i", sound:"ɪ"}, {letters:"ll", sound:"l"}, {letters:"ow", sound:"oʊ"}] },
+                { id: 'u1_47', word: "ball", chinese: [{c:"球", p:"ㄑㄧㄡˊ"}], emoji: "🏀⚽", phonicsChunks: [{letters:"b", sound:"b"}, {letters:"a", sound:"ɔː"}, {letters:"ll", sound:"l"}] },
+                { id: 'u1_48', word: "alligator", chinese: [{c:"鱷", p:"ㄜˋ"}, {c:"魚", p:"ㄩˊ"}], emoji: "🐊🐊", phonicsChunks: [{letters:"a", sound:"æ"}, {letters:"ll", sound:"l"}, {letters:"i", sound:"ɪ"}, {letters:"g", sound:"g"}, {letters:"a", sound:"eɪ"}, {letters:"t", sound:"t"}, {letters:"or", sound:"ər"}] },
+                { id: 'u1_49', word: "comb", chinese: [{c:"梳", p:"ㄕㄨ"}, {c:"子", p:"ㄗ˙"}], emoji: "🪮💈", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"o", sound:"oʊ"}, {letters:"mb", sound:"m"}] },
+                { id: 'u1_50', word: "fan", chinese: [{c:"風", p:"ㄈㄥ"}, {c:"扇", p:"ㄕㄢˋ"}], emoji: "🌀🌬️", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"a", sound:"æ"}, {letters:"n", sound:"n"}] },
+                { id: 'u1_51', word: "king", chinese: [{c:"國", p:"ㄍㄨㄛˊ"}, {c:"王", p:"ㄨㄤˊ"}], emoji: "👑🤴", phonicsChunks: [{letters:"k", sound:"k"}, {letters:"i", sound:"ɪ"}, {letters:"ng", sound:"ŋ"}] },
+                { id: 'u1_52', word: "sandwich", chinese: [{c:"三", p:"ㄙㄢ"}, {c:"明", p:"ㄇㄧㄥˊ"}, {c:"治", p:"ㄓˋ"}], emoji: "🥪🥪", phonicsChunks: [{letters:"s", sound:"s"}, {letters:"a", sound:"æ"}, {letters:"n", sound:"n"}, {letters:"d", sound:"d"}, {letters:"w", sound:"w"}, {letters:"i", sound:"ɪ"}, {letters:"ch", sound:"tʃ"}] },
+                { id: 'u1_53', word: "dog", chinese: [{c:"狗", p:"ㄍㄡˇ"}], emoji: "🐶🐕", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"o", sound:"ɔː"}, {letters:"g", sound:"g"}] },
+                { id: 'u1_54', word: "egg", chinese: [{c:"雞", p:"ㄐㄧ"}, {c:"蛋", p:"ㄉㄢˋ"}], emoji: "🥚🍳", phonicsChunks: [{letters:"e", sound:"e"}, {letters:"gg", sound:"g"}] },
+                { id: 'u1_55', word: "cup", chinese: [{c:"杯", p:"ㄅㄟ"}, {c:"子", p:"ㄗ˙"}], emoji: "☕🥤", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"u", sound:"ʌ"}, {letters:"p", sound:"p"}] },
+                { id: 'u1_56', word: "tent", chinese: [{c:"帳", p:"ㄓㄤˋ"}, {c:"篷", p:"ㄆㄥˊ"}], emoji: "⛺🏕️", phonicsChunks: [{letters:"t", sound:"t"}, {letters:"e", sound:"e"}, {letters:"n", sound:"n"}, {letters:"t", sound:"t"}] },
+                { id: 'u1_57', word: "mop", chinese: [{c:"拖", p:"ㄊㄨㄛ"}, {c:"把", p:"ㄅㄚˇ"}], emoji: "🧹🪣", phonicsChunks: [{letters:"m", sound:"m"}, {letters:"o", sound:"ɑː"}, {letters:"p", sound:"p"}] },
+                { id: 'u1_58', word: "turtle", chinese: [{c:"烏", p:"ㄨ"}, {c:"龜", p:"ㄍㄨㄟ"}], emoji: "🐢🐢", phonicsChunks: [{letters:"t", sound:"t"}, {letters:"ur", sound:"ɜːr"}, {letters:"t", sound:"t"}, {letters:"le", sound:"l"}] },
+                { id: 'u1_59', word: "can", chinese: [{c:"罐", p:"ㄍㄨㄢˋ"}, {c:"頭", p:"ㄊㄡˊ"}], emoji: "🥫🥤", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"a", sound:"æ"}, {letters:"n", sound:"n"}] },
+                { id: 'u1_60', word: "ink", chinese: [{c:"墨", p:"ㄇㄛˋ"}, {c:"水", p:"ㄕㄨㄟˇ"}], emoji: "✒️🖋️", phonicsChunks: [{letters:"i", sound:"ɪ"}, {letters:"nk", sound:"ŋk"}] },
+                { id: 'u1_61', word: "gate", chinese: [{c:"大", p:"ㄉㄚˋ"}, {c:"門", p:"ㄇㄣˊ"}], emoji: "🚪🏡", phonicsChunks: [{letters:"g", sound:"g"}, {letters:"a", sound:"eɪ"}, {letters:"t", sound:"t"}, {letters:"e", sound:""}] },
+                { id: 'u1_62', word: "lion", chinese: [{c:"獅", p:"ㄕ"}, {c:"子", p:"ㄗ˙"}], emoji: "🦁👑", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"i", sound:"aɪ"}, {letters:"on", sound:"ən"}] },
+                { id: 'u1_63', word: "dinosaur", chinese: [{c:"恐", p:"ㄎㄨㄥˇ"}, {c:"龍", p:"ㄌㄨㄥˊ"}], emoji: "🦖🦕", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"i", sound:"aɪ"}, {letters:"n", sound:"n"}, {letters:"o", sound:"ə"}, {letters:"s", sound:"s"}, {letters:"aur", sound:"ɔːr"}] },
+                { id: 'u1_64', word: "ham", chinese: [{c:"火", p:"ㄏㄨㄛˇ"}, {c:"腿", p:"ㄊㄨㄟˇ"}], emoji: "🍖🥓", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"a", sound:"æ"}, {letters:"m", sound:"m"}] }
+            ],
+            3: [
+                { id: 'w3_1', word: "sun", chinese: [{c:"太", p:"ㄊㄞˋ"}, {c:"陽", p:"ㄧㄤˊ"}], emoji: "☀️🌞", phonicsChunks: [{letters:"s", sound:"s"}, {letters:"u", sound:"ʌ"}, {letters:"n", sound:"n"}] },
+                { id: 'w3_2', word: "moon", chinese: [{c:"月", p:"ㄩㄝˋ"}, {c:"亮", p:"ㄌㄧㄤˋ"}], emoji: "🌙🌌", phonicsChunks: [{letters:"m", sound:"m"}, {letters:"oo", sound:"uː"}, {letters:"n", sound:"n"}] },
+                { id: 'w3_3', word: "star", chinese: [{c:"星", p:"ㄒㄧㄥ"}, {c:"星", p:"ㄒㄧㄥ"}], emoji: "⭐✨", phonicsChunks: [{letters:"s", sound:"s"}, {letters:"t", sound:"t"}, {letters:"ar", sound:"ɑːr"}] }
+            ],
+            4: [
+                { id: 'w4_1', word: "fish", chinese: [{c:"魚", p:"ㄩˊ"}], emoji: "🐟🐠", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"i", sound:"ɪ"}, {letters:"sh", sound:"ʃ"}] },
+                { id: 'w4_2', word: "fire", chinese: [{c:"火", p:"ㄏㄨㄛˇ"}], emoji: "🔥🚒", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"i", sound:"aɪ"}, {letters:"r", sound:"r"}, {letters:"e", sound:""}] },
+                { id: 'w4_3', word: "fan", chinese: [{c:"風", p:"ㄈㄥ"}, {c:"扇", p:"ㄕㄢˋ"}], emoji: "🌀🌬️", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"a", sound:"æ"}, {letters:"n", sound:"n"}] },
+                { id: 'w4_4', word: "foot", chinese: [{c:"腳", p:"ㄐㄧㄠˇ"}], emoji: "🦶👟", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"oo", sound:"ʊ"}, {letters:"t", sound:"t"}] },
+                { id: 'w4_5', word: "five", chinese: [{c:"五", p:"ㄨˇ"}], emoji: "5️⃣✋", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"i", sound:"aɪ"}, {letters:"v", sound:"v"}, {letters:"e", sound:""}] },
+                { id: 'w4_6', word: "game", chinese: [{c:"遊", p:"ㄧㄡˊ"}, {c:"戲", p:"ㄒㄧˋ"}], emoji: "🎮🕹️", phonicsChunks: [{letters:"g", sound:"g"}, {letters:"a", sound:"eɪ"}, {letters:"m", sound:"m"}, {letters:"e", sound:""}] },
+                { id: 'w4_7', word: "gate", chinese: [{c:"大", p:"ㄉㄚˋ"}, {c:"門", p:"ㄇㄣˊ"}], emoji: "🚪🏡", phonicsChunks: [{letters:"g", sound:"g"}, {letters:"a", sound:"eɪ"}, {letters:"t", sound:"t"}, {letters:"e", sound:""}] },
+                { id: 'w4_8', word: "goat", chinese: [{c:"山", p:"ㄕㄢ"}, {c:"羊", p:"ㄧㄤˊ"}], emoji: "🐐🌿", phonicsChunks: [{letters:"g", sound:"g"}, {letters:"oa", sound:"oʊ"}, {letters:"t", sound:"t"}] },
+                { id: 'w4_9', word: "goose", chinese: [{c:"鵝", p:"ㄜˊ"}], emoji: "🪿🌊", phonicsChunks: [{letters:"g", sound:"g"}, {letters:"oo", sound:"uː"}, {letters:"s", sound:"s"}, {letters:"e", sound:""}] },
+                { id: 'w4_10', word: "key", chinese: [{c:"鑰", p:"ㄧㄠˋ"}, {c:"匙", p:"ㄕ˙"}], emoji: "🔑🔒", phonicsChunks: [{letters:"k", sound:"k"}, {letters:"ey", sound:"iː"}] },
+                { id: 'w4_11', word: "kick", chinese: [{c:"踢", p:"ㄊㄧ"}], emoji: "🦵⚽", phonicsChunks: [{letters:"k", sound:"k"}, {letters:"i", sound:"ɪ"}, {letters:"ck", sound:"k"}] },
+                { id: 'w4_12', word: "kiss", chinese: [{c:"親", p:"ㄑㄧㄣ"}, {c:"吻", p:"ㄨㄣˇ"}], emoji: "💋👩‍👦", phonicsChunks: [{letters:"k", sound:"k"}, {letters:"i", sound:"ɪ"}, {letters:"ss", sound:"s"}] },
+                { id: 'w4_13', word: "kite", chinese: [{c:"風", p:"ㄈㄥ"}, {c:"箏", p:"ㄓㄥ"}], emoji: "🪁🪁", phonicsChunks: [{letters:"k", sound:"k"}, {letters:"i", sound:"aɪ"}, {letters:"t", sound:"t"}, {letters:"e", sound:""}] },
+                { id: 'w4_14', word: "king", chinese: [{c:"國", p:"ㄍㄨㄛˊ"}, {c:"王", p:"ㄨㄤˊ"}], emoji: "👑🤴", phonicsChunks: [{letters:"k", sound:"k"}, {letters:"i", sound:"ɪ"}, {letters:"ng", sound:"ŋ"}] },
+                { id: 'w4_15', word: "kitchen", chinese: [{c:"廚", p:"ㄔㄨˊ"}, {c:"房", p:"ㄈㄤˊ"}], emoji: "🍳🍳", phonicsChunks: [{letters:"k", sound:"k"}, {letters:"i", sound:"ɪ"}, {letters:"t", sound:""}, {letters:"ch", sound:"tʃ"}, {letters:"e", sound:"ə"}, {letters:"n", sound:"n"}] },
+                { id: 'w4_16', word: "kangaroo", chinese: [{c:"袋", p:"ㄉㄞˋ"}, {c:"鼠", p:"ㄕㄨˇ"}], emoji: "🦘🦘", phonicsChunks: [{letters:"k", sound:"k"}, {letters:"a", sound:"æ"}, {letters:"ng", sound:"ŋ"}, {letters:"a", sound:"ə"}, {letters:"r", sound:"r"}, {letters:"oo", sound:"uː"}] },
+                { id: 'w4_17', word: "tent", chinese: [{c:"帳", p:"ㄓㄤˋ"}, {c:"篷", p:"ㄆㄥˊ"}], emoji: "⛺🏕️", phonicsChunks: [{letters:"t", sound:"t"}, {letters:"e", sound:"e"}, {letters:"n", sound:"n"}, {letters:"t", sound:"t"}] },
+                { id: 'w4_18', word: "tiger", chinese: [{c:"老", p:"ㄌㄠˇ"}, {c:"虎", p:"ㄏㄨˇ"}], emoji: "🐯🐅", phonicsChunks: [{letters:"t", sound:"t"}, {letters:"i", sound:"aɪ"}, {letters:"g", sound:"g"}, {letters:"er", sound:"ər"}] },
+                { id: 'w4_19', word: "turtle", chinese: [{c:"烏", p:"ㄨ"}, {c:"龜", p:"ㄍㄨㄟ"}], emoji: "🐢🐢", phonicsChunks: [{letters:"t", sound:"t"}, {letters:"ur", sound:"ɜːr"}, {letters:"t", sound:"t"}, {letters:"le", sound:"l"}] },
+                { id: 'w4_20', word: "tomato", chinese: [{c:"番", p:"ㄈㄢ"}, {c:"茄", p:"ㄑㄧㄝˊ"}], emoji: "🍅🥗", phonicsChunks: [{letters:"t", sound:"t"}, {letters:"o", sound:"ə"}, {letters:"m", sound:"m"}, {letters:"a", sound:"ɑː"}, {letters:"t", sound:"t"}, {letters:"o", sound:"oʊ"}] },
+                { id: 'w4_21', word: "toaster", chinese: [{c:"烤", p:"ㄎㄠˇ"}, {c:"麵", p:"ㄇㄧㄢˋ"}, {c:"包", p:"ㄅㄠ"}, {c:"機", p:"ㄐㄧ"}], emoji: "🍞🔥", phonicsChunks: [{letters:"t", sound:"t"}, {letters:"oa", sound:"oʊ"}, {letters:"s", sound:"s"}, {letters:"t", sound:"t"}, {letters:"er", sound:"ər"}] },
+                { id: 'w4_22', word: "top", chinese: [{c:"陀", p:"ㄊㄨㄛˊ"}, {c:"螺", p:"ㄌㄨㄛˊ"}], emoji: "🌪️🎯", phonicsChunks: [{letters:"t", sound:"t"}, {letters:"o", sound:"ɑ"}, {letters:"p", sound:"p"}] },
+                { id: 'w4_23', word: "tape", chinese: [{c:"膠", p:"ㄐㄧㄠ"}, {c:"帶", p:"ㄉㄞˋ"}], emoji: "📼📦", phonicsChunks: [{letters:"t", sound:"t"}, {letters:"a", sound:"eɪ"}, {letters:"p", sound:"p"}, {letters:"e", sound:""}] },
+                { id: 'w4_24', word: "towel", chinese: [{c:"毛", p:"ㄇㄠˊ"}, {c:"巾", p:"ㄐㄧㄣ"}], emoji: "🛁🧼", phonicsChunks: [{letters:"t", sound:"t"}, {letters:"ow", sound:"aʊ"}, {letters:"e", sound:"ə"}, {letters:"l", sound:"l"}] }
+            ],
+            5: [
+                { id: 'w5_1', word: "ham", chinese: [{c:"火", p:"ㄏㄨㄛˇ"}, {c:"腿", p:"ㄊㄨㄟˇ"}], emoji: "🍖🥓", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"a", sound:"æ"}, {letters:"m", sound:"m"}] },
+                { id: 'w5_2', word: "hat", chinese: [{c:"帽", p:"ㄇㄠˋ"}, {c:"子", p:"ㄗ˙"}], emoji: "🎩🧢", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"a", sound:"æ"}, {letters:"t", sound:"t"}] },
+                { id: 'w5_3', word: "hammer", chinese: [{c:"鐵", p:"ㄊㄧㄝˇ"}, {c:"錘", p:"ㄔㄨㄟˊ"}], emoji: "🔨🛠️", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"a", sound:"æ"}, {letters:"mm", sound:"m"}, {letters:"er", sound:"ər"}] },
+                { id: 'w5_4', word: "hand", chinese: [{c:"手", p:"ㄕㄡˇ"}], emoji: "✋🖐️", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"a", sound:"æ"}, {letters:"n", sound:"n"}, {letters:"d", sound:"d"}] },
+                { id: 'w5_5', word: "hose", chinese: [{c:"水", p:"ㄕㄨㄟˇ"}, {c:"管", p:"ㄍㄨㄢˇ"}], emoji: "𚰰🚿", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"o", sound:"oʊ"}, {letters:"s", sound:"z"}, {letters:"e", sound:""}] },
+                { id: 'w5_6', word: "helicopter", chinese: [{c:"直", p:"ㄓˊ"}, {c:"升", p:"ㄕㄥ"}, {c:"機", p:"ㄐㄧ"}], emoji: "🚁🛸", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"e", sound:"e"}, {letters:"li", sound:"lɪ"}, {letters:"cop", sound:"kɑːp"}, {letters:"ter", sound:"tər"}] },
+                { id: 'w5_7', word: "house", chinese: [{c:"房", p:"ㄈㄤˊ"}, {c:"子", p:"ㄗ˙"}], emoji: "🏠🏡", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"ou", sound:"aʊ"}, {letters:"se", sound:"s"}] },
+                { id: 'w5_8', word: "horse", chinese: [{c:"馬", p:"ㄇㄚˇ"}], emoji: "🐴🐎", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"or", sound:"ɔːr"}, {letters:"se", sound:"s"}] },
+                { id: 'w5_9', word: "helmet", chinese: [{c:"安", p:"ㄢ"}, {c:"全", p:"ㄑㄩㄢˊ"}, {c:"帽", p:"ㄇㄠˋ"}], emoji: "🪖⛑️", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"el", sound:"el"}, {letters:"m", sound:"m"}, {letters:"et", sound:"et"}] },
+                { id: 'w5_10', word: "ink", chinese: [{c:"墨", p:"ㄇㄛˋ"}, {c:"水", p:"ㄕㄨㄟˇ"}], emoji: "✒️🖋️", phonicsChunks: [{letters:"i", sound:"ɪ"}, {letters:"nk", sound:"ŋk"}] },
+                { id: 'w5_11', word: "igloo", chinese: [{c:"冰", p:"ㄅㄧㄥ"}, {c:"屋", p:"ㄨ"}], emoji: "🧊🏠", phonicsChunks: [{letters:"i", sound:"ɪ"}, {letters:"g", sound:"g"}, {letters:"loo", sound:"luː"}] },
+                { id: 'w5_12', word: "car", chinese: [{c:"車", p:"ㄔㄜ"}, {c:"子", p:"ㄗ˙"}], emoji: "🚗🏎️", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"ar", sound:"ɑːr"}] },
+                { id: 'w5_13', word: "cap", chinese: [{c:"鴨", p:"ㄧㄚ"}, {c:"舌", p:"ㄕㄜˊ"}, {c:"帽", p:"ㄇㄠˋ"}], emoji: "🧢⚾", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"a", sound:"æ"}, {letters:"p", sound:"p"}] },
+                { id: 'w5_14', word: "can", chinese: [{c:"罐", p:"ㄍㄨㄢˋ"}, {c:"頭", p:"ㄊㄡˊ"}], emoji: "🥫🥤", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"a", sound:"æ"}, {letters:"n", sound:"n"}] },
+                { id: 'w5_15', word: "candle", chinese: [{c:"蠟", p:"ㄌㄚˋ"}, {c:"燭", p:"ㄓㄨˊ"}], emoji: "🕯️🎂", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"an", sound:"æn"}, {letters:"d", sound:"d"}, {letters:"le", sound:"l"}] },
+                { id: 'w5_16', word: "carrot", chinese: [{c:"胡", p:"ㄏㄨˊ"}, {c:"蘿", p:"ㄌㄨㄛˊ"}, {c:"蔔", p:"ㄅㄛ˙"}], emoji: "🥕🐰", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"a", sound:"æ"}, {letters:"rr", sound:"r"}, {letters:"ot", sound:"ət"}] },
+                { id: 'w5_17', word: "comb", chinese: [{c:"梳", p:"ㄕㄨ"}, {c:"子", p:"ㄗ˙"}], emoji: "🪮💈", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"o", sound:"oʊ"}, {letters:"mb", sound:"m"}] },
+                { id: 'w5_18', word: "corn", chinese: [{c:"玉", p:"ㄩˋ"}, {c:"米", p:"ㄇㄧˇ"}], emoji: "🌽🍿", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"or", sound:"ɔːr"}, {letters:"n", sound:"n"}] },
+                { id: 'w5_19', word: "collar", chinese: [{c:"衣", p:"ㄧ"}, {c:"領", p:"ㄌㄧㄥˇ"}], emoji: "👔🐶", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"o", sound:"ɑː"}, {letters:"ll", sound:"l"}, {letters:"ar", sound:"ər"}] },
+                { id: 'w5_20', word: "coat", chinese: [{c:"外", p:"ㄨㄞˋ"}, {c:"套", p:"ㄊㄠˋ"}], emoji: "🧥❄️", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"oa", sound:"oʊ"}, {letters:"t", sound:"t"}] },
+                { id: 'w5_21', word: "cow", chinese: [{c:"乳", p:"ㄖㄨˇ"}, {c:"牛", p:"ㄋㄧㄡˊ"}], emoji: "🐮🥛", phonicsChunks: [{letters:"c", sound:"k"}, {letters:"ow", sound:"aʊ"}] },
+                { id: 'w5_22', word: "elephant", chinese: [{c:"大", p:"ㄉㄚˋ"}, {c:"象", p:"ㄒㄧㄤˋ"}], emoji: "🐘🦒", phonicsChunks: [{letters:"e", sound:"e"}, {letters:"le", sound:"lə"}, {letters:"ph", sound:"f"}, {letters:"ant", sound:"ənt"}] },
+                { id: 'w5_23', word: "elbow", chinese: [{c:"手", p:"ㄕㄡˇ"}, {c:"肘", p:"ㄓㄡˇ"}], emoji: "🦾💪", phonicsChunks: [{letters:"el", sound:"el"}, {letters:"b", sound:"b"}, {letters:"ow", sound:"oʊ"}] },
+                { id: 'w5_24', word: "egg", chinese: [{c:"雞", p:"ㄐㄧ"}, {c:"蛋", p:"ㄉㄢˋ"}], emoji: "🥚🍳", phonicsChunks: [{letters:"e", sound:"e"}, {letters:"gg", sound:"g"}] },
+                { id: 'w5_25', word: "elf", chinese: [{c:"精", p:"ㄐㄧㄥ"}, {c:"靈", p:"ㄌㄧㄥˊ"}], emoji: "🧝🧚", phonicsChunks: [{letters:"e", sound:"e"}, {letters:"l", sound:"l"}, {letters:"f", sound:"f"}] },
+                { id: 'w5_26', word: "elevator", chinese: [{c:"電", p:"ㄉㄧㄢˋ"}, {c:"梯", p:"ㄊㄧ"}], emoji: "🛗🏢", phonicsChunks: [{letters:"e", sound:"e"}, {letters:"le", sound:"lə"}, {letters:"va", sound:"veɪ"}, {letters:"tor", sound:"tər"}] },
+                { id: 'w5_27', word: "fence", chinese: [{c:"籬", p:"ㄌㄧˊ"}, {c:"芭", p:"ㄅㄚ"}], emoji: "🪵🏡", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"en", sound:"en"}, {letters:"ce", sound:"s"}] },
+                { id: 'w5_28', word: "belt", chinese: [{c:"皮", p:"ㄆㄧˊ"}, {c:"帶", p:"ㄉㄞˋ"}], emoji: "👖➰", phonicsChunks: [{letters:"b", sound:"b"}, {letters:"e", sound:"e"}, {letters:"l", sound:"l"}, {letters:"t", sound:"t"}] },
+                { id: 'w5_29', word: "dress", chinese: [{c:"洋", p:"ㄧㄤˊ"}, {c:"裝", p:"ㄓㄨㄤ"}], emoji: "👗👸", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"r", sound:"r"}, {letters:"e", sound:"e"}, {letters:"ss", sound:"s"}] },
+                { id: 'w5_30', word: "net", chinese: [{c:"網", p:"ㄨㄤˇ"}, {c:"子", p:"ㄗ˙"}], emoji: "🕸️🥅", phonicsChunks: [{letters:"n", sound:"n"}, {letters:"e", sound:"e"}, {letters:"t", sound:"t"}] },
+                { id: 'w5_31', word: "sled", chinese: [{c:"雪", p:"ㄒㄩㄝˇ"}, {c:"橇", p:"ㄑㄧㄠ"}], emoji: "🛷❄️", phonicsChunks: [{letters:"s", sound:"s"}, {letters:"l", sound:"l"}, {letters:"e", sound:"e"}, {letters:"d", sound:"d"}] },
+                { id: 'w5_32', word: "ten", chinese: [{c:"十", p:"ㄕˊ"}], emoji: "🔟🖐️", phonicsChunks: [{letters:"t", sound:"t"}, {letters:"e", sound:"e"}, {letters:"n", sound:"n"}] },
+                { id: 'w5_33', word: "shell", chinese: [{c:"貝", p:"ㄅㄟˋ"}, {c:"殼", p:"ㄎㄜˊ"}], emoji: "🐚🌊", phonicsChunks: [{letters:"sh", sound:"ʃ"}, {letters:"e", sound:"e"}, {letters:"ll", sound:"l"}] },
+                { id: 'w5_34', word: "bed", chinese: [{c:"床", p:"ㄔㄨㄤˊ"}], emoji: "🛏️💤", phonicsChunks: [{letters:"b", sound:"b"}, {letters:"e", sound:"e"}, {letters:"d", sound:"d"}] },
+                { id: 'w5_35', word: "web", chinese: [{c:"蜘", p:"ㄓ"}, {c:"蛛", p:"ㄓㄨ"}, {c:"網", p:"ㄨㄤˇ"}], emoji: "🕸️🕷️", phonicsChunks: [{letters:"w", sound:"w"}, {letters:"e", sound:"e"}, {letters:"b", sound:"b"}] },
+                { id: 'w5_36', word: "bell", chinese: [{c:"鈴", p:"ㄌㄧㄥˊ"}, {c:"鐺", p:"ㄉㄤ"}], emoji: "🔔🔔", phonicsChunks: [{letters:"b", sound:"b"}, {letters:"e", sound:"e"}, {letters:"ll", sound:"l"}] }
+            ],
+            6: [
+                { id: 'w6_1', word: "fish", chinese: [{c:"魚", p:"ㄩˊ"}], emoji: "🐟🐠", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"i", sound:"ɪ"}, {letters:"sh", sound:"ʃ"}] },
+                { id: 'w6_2', word: "fork", chinese: [{c:"叉", p:"ㄔㄚ"}, {c:"子", p:"ㄗ˙"}], emoji: "🍴🍝", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"or", sound:"ɔːr"}, {letters:"k", sound:"k"}] },
+                { id: 'w6_3', word: "fire", chinese: [{c:"火", p:"ㄏㄨㄛˇ"}], emoji: "🔥🚒", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"i", sound:"aɪ"}, {letters:"r", sound:"r"}, {letters:"e", sound:""}] },
+                { id: 'w6_4', word: "fan", chinese: [{c:"風", p:"ㄈㄥ"}, {c:"扇", p:"ㄕㄢˋ"}], emoji: "🌀🌬️", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"a", sound:"æ"}, {letters:"n", sound:"n"}] },
+                { id: 'w6_5', word: "foot", chinese: [{c:"腳", p:"ㄐㄧㄠˇ"}], emoji: "🦶👟", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"oo", sound:"ʊ"}, {letters:"t", sound:"t"}] },
+                { id: 'w6_6', word: "feet", chinese: [{c:"雙", p:"ㄕㄨㄤ"}, {c:"腳", p:"ㄐㄧㄠˇ"}], emoji: "🦶🦶", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"ee", sound:"iː"}, {letters:"t", sound:"t"}] },
+                { id: 'w6_7', word: "four", chinese: [{c:"四", p:"ㄙˋ"}], emoji: "4️⃣🍀", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"our", sound:"ɔːr"}] },
+                { id: 'w6_8', word: "fox", chinese: [{c:"狐", p:"ㄏㄨˊ"}, {c:"狸", p:"ㄌㄧ˙"}], emoji: "🦊🌲", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"o", sound:"ɑː"}, {letters:"x", sound:"ks"}] },
+                { id: 'w6_9', word: "football", chinese: [{c:"足", p:"ㄗㄨˊ"}, {c:"球", p:"ㄑㄧㄡˊ"}], emoji: "⚽🏈", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"oo", sound:"ʊ"}, {letters:"t", sound:"t"}, {letters:"b", sound:"b"}, {letters:"a", sound:"ɔː"}, {letters:"ll", sound:"l"}] },
+                { id: 'w6_10', word: "feather", chinese: [{c:"羽", p:"ㄩˇ"}, {c:"毛", p:"ㄇㄠˊ"}], emoji: "🪶🦚", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"ea", sound:"e"}, {letters:"th", sound:"ð"}, {letters:"er", sound:"ər"}] },
+                { id: 'w6_11', word: "lion", chinese: [{c:"獅", p:"ㄕ"}, {c:"子", p:"ㄗ˙"}], emoji: "🦁👑", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"i", sound:"aɪ"}, {letters:"on", sound:"ən"}] },
+                { id: 'w6_12', word: "lock", chinese: [{c:"鎖", p:"ㄙㄨㄛˇ"}], emoji: "🔒🔑", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"o", sound:"ɑː"}, {letters:"ck", sound:"k"}] },
+                { id: 'w6_13', word: "leaf", chinese: [{c:"樹", p:"ㄕㄨˋ"}, {c:"葉", p:"ㄧㄝˋ"}], emoji: "🍃🍂", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"ea", sound:"iː"}, {letters:"f", sound:"f"}] },
+                { id: 'w6_14', word: "log", chinese: [{c:"木", p:"ㄇㄨˋ"}, {c:"頭", p:"ㄊㄡˊ"}], emoji: "🪵🌲", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"o", sound:"ɑː"}, {letters:"g", sound:"g"}] },
+                { id: 'w6_15', word: "lip", chinese: [{c:"嘴", p:"ㄗㄨㄟˇ"}, {c:"唇", p:"ㄔㄨㄣˊ"}], emoji: "👄💋", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"i", sound:"ɪ"}, {letters:"p", sound:"p"}] },
+                { id: 'w6_16', word: "lamp", chinese: [{c:"檯", p:"ㄊㄞˊ"}, {c:"燈", p:"ㄉㄥ"}], emoji: "💡🛋️", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"a", sound:"æ"}, {letters:"m", sound:"m"}, {letters:"p", sound:"p"}] },
+                { id: 'w6_17', word: "letter", chinese: [{c:"信", p:"ㄒㄧㄣˋ"}, {c:"件", p:"ㄐㄧㄢˋ"}], emoji: "✉️🔤", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"e", sound:"e"}, {letters:"tt", sound:"t"}, {letters:"er", sound:"ər"}] },
+                { id: 'w6_18', word: "ladder", chinese: [{c:"梯", p:"ㄊㄧ"}, {c:"子", p:"ㄗ˙"}], emoji: "🪜🧱", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"a", sound:"æ"}, {letters:"dd", sound:"d"}, {letters:"er", sound:"ər"}] },
+                { id: 'w6_19', word: "leg", chinese: [{c:"腿", p:"ㄊㄨㄟˇ"}], emoji: "🦵🩳", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"e", sound:"e"}, {letters:"g", sound:"g"}] },
+                { id: 'w6_20', word: "light bulb", chinese: [{c:"電", p:"ㄉㄧㄢˋ"}, {c:"燈", p:"ㄉㄥ"}, {c:"泡", p:"ㄆㄠˋ"}], emoji: "💡✨", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"igh", sound:"aɪ"}, {letters:"t", sound:"t"}, {letters:" ", sound:""}, {letters:"b", sound:"b"}, {letters:"u", sound:"ʌ"}, {letters:"l", sound:"l"}, {letters:"b", sound:"b"}] }
+            ],
+            7: [
+                { id: 'w7_1', word: "bib", chinese: [{c:"圍", p:"ㄨㄟˊ"}, {c:"兜", p:"ㄉㄡ"}], emoji: "👶🍼", phonicsChunks: [{letters:"b", sound:"b"}, {letters:"i", sound:"ɪ"}, {letters:"b", sound:"b"}] },
+                { id: 'w7_2', word: "pig", chinese: [{c:"豬", p:"ㄓㄨ"}], emoji: "🐷🐽", phonicsChunks: [{letters:"p", sound:"p"}, {letters:"i", sound:"ɪ"}, {letters:"g", sound:"g"}] },
+                { id: 'w7_3', word: "milk", chinese: [{c:"牛", p:"ㄋㄧㄡˊ"}, {c:"奶", p:"ㄋㄞˇ"}], emoji: "🥛🐮", phonicsChunks: [{letters:"m", sound:"m"}, {letters:"i", sound:"ɪ"}, {letters:"l", sound:"l"}, {letters:"k", sound:"k"}] },
+                { id: 'w7_4', word: "fish", chinese: [{c:"魚", p:"ㄩˊ"}], emoji: "🐟🐠", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"i", sound:"ɪ"}, {letters:"sh", sound:"ʃ"}] },
+                { id: 'w7_5', word: "six", chinese: [{c:"六", p:"ㄌㄧㄡˋ"}], emoji: "6️⃣🤙", phonicsChunks: [{letters:"s", sound:"s"}, {letters:"i", sound:"ɪ"}, {letters:"x", sound:"ks"}] },
+                { id: 'w7_6', word: "chick", chinese: [{c:"小", p:"ㄒㄧㄠˇ"}, {c:"雞", p:"ㄐㄧ"}], emoji: "🐥🐣", phonicsChunks: [{letters:"ch", sound:"tʃ"}, {letters:"i", sound:"ɪ"}, {letters:"ck", sound:"k"}] },
+                { id: 'w7_7', word: "lips", chinese: [{c:"嘴", p:"ㄗㄨㄟˇ"}, {c:"唇", p:"ㄔㄨㄣˊ"}], emoji: "👄💋", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"i", sound:"ɪ"}, {letters:"p", sound:"p"}, {letters:"s", sound:"s"}] },
+                { id: 'w7_8', word: "jacks", chinese: [{c:"撿", p:"ㄐㄧㄢˇ"}, {c:"石", p:"ㄕˊ"}, {c:"遊", p:"ㄧㄡˊ"}, {c:"戲", p:"ㄒㄧˋ"}], emoji: "🤹⭐", phonicsChunks: [{letters:"j", sound:"dʒ"}, {letters:"a", sound:"æ"}, {letters:"ck", sound:"k"}, {letters:"s", sound:"s"}] },
+                { id: 'w7_9', word: "jar", chinese: [{c:"罐", p:"ㄍㄨㄢˋ"}, {c:"子", p:"ㄗ˙"}], emoji: "🫙🍯", phonicsChunks: [{letters:"j", sound:"dʒ"}, {letters:"ar", sound:"ɑːr"}] },
+                { id: 'w7_10', word: "jug", chinese: [{c:"水", p:"ㄕㄨㄟˇ"}, {c:"壺", p:"ㄏㄨˊ"}], emoji: "🏺💦", phonicsChunks: [{letters:"j", sound:"dʒ"}, {letters:"u", sound:"ʌ"}, {letters:"g", sound:"g"}] },
+                { id: 'w7_11', word: "jump", chinese: [{c:"跳", p:"ㄊㄧㄠˋ"}], emoji: "🦘⬆️", phonicsChunks: [{letters:"j", sound:"dʒ"}, {letters:"u", sound:"ʌ"}, {letters:"m", sound:"m"}, {letters:"p", sound:"p"}] },
+                { id: 'w7_12', word: "jeep", chinese: [{c:"吉", p:"ㄐㄧˊ"}, {c:"普", p:"ㄆㄨˇ"}, {c:"車", p:"ㄔㄜ"}], emoji: "🚙⛰️", phonicsChunks: [{letters:"j", sound:"dʒ"}, {letters:"ee", sound:"iː"}, {letters:"p", sound:"p"}] },
+                { id: 'w7_13', word: "horse", chinese: [{c:"馬", p:"ㄇㄚˇ"}], emoji: "🐴🐎", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"or", sound:"ɔːr"}, {letters:"se", sound:"s"}] },
+                { id: 'w7_14', word: "house", chinese: [{c:"房", p:"ㄈㄤˊ"}, {c:"子", p:"ㄗ˙"}], emoji: "🏠🏡", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"ou", sound:"aʊ"}, {letters:"se", sound:"s"}] },
+                { id: 'w7_15', word: "hanger", chinese: [{c:"衣", p:"ㄧ"}, {c:"架", p:"ㄐㄧㄚˋ"}], emoji: "🧥🪝", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"a", sound:"æ"}, {letters:"ng", sound:"ŋ"}, {letters:"er", sound:"ər"}] },
+                { id: 'w7_16', word: "hose", chinese: [{c:"水", p:"ㄕㄨㄟˇ"}, {c:"管", p:"ㄍㄨㄢˇ"}], emoji: "🚰🚿", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"o", sound:"oʊ"}, {letters:"s", sound:"z"}, {letters:"e", sound:""}] },
+                { id: 'w7_17', word: "hand", chinese: [{c:"手", p:"ㄕㄡˇ"}], emoji: "✋🖐️", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"a", sound:"æ"}, {letters:"n", sound:"n"}, {letters:"d", sound:"d"}] },
+                { id: 'w7_18', word: "horn", chinese: [{c:"喇", p:"ㄌㄚˇ"}, {c:"叭", p:"ㄅㄚ"}], emoji: "🎺📯", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"or", sound:"ɔːr"}, {letters:"n", sound:"n"}] },
+                { id: 'w7_19', word: "ham", chinese: [{c:"火", p:"ㄏㄨㄛˇ"}, {c:"腿", p:"ㄊㄨㄟˇ"}], emoji: "🍖🥓", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"a", sound:"æ"}, {letters:"m", sound:"m"}] },
+                { id: 'w7_20', word: "helicopter", chinese: [{c:"直", p:"ㄓˊ"}, {c:"升", p:"ㄕㄥ"}, {c:"機", p:"ㄐㄧ"}], emoji: "🚁🛸", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"e", sound:"e"}, {letters:"li", sound:"lɪ"}, {letters:"cop", sound:"kɑːp"}, {letters:"ter", sound:"tər"}] },
+                { id: 'w7_21', word: "hat", chinese: [{c:"帽", p:"ㄇㄠˋ"}, {c:"子", p:"ㄗ˙"}], emoji: "🎩🧢", phonicsChunks: [{letters:"h", sound:"h"}, {letters:"a", sound:"æ"}, {letters:"t", sound:"t"}] },
+                { id: 'w7_22', word: "rainbow", chinese: [{c:"彩", p:"ㄘㄞˇ"}, {c:"虹", p:"ㄏㄨㄥˊ"}], emoji: "🌈☀️", phonicsChunks: [{letters:"r", sound:"r"}, {letters:"ai", sound:"eɪ"}, {letters:"n", sound:"n"}, {letters:"b", sound:"b"}, {letters:"ow", sound:"oʊ"}] },
+                { id: 'w7_23', word: "rake", chinese: [{c:"耙", p:"ㄆㄚˊ"}, {c:"子", p:"ㄗ˙"}], emoji: "🧹🍂", phonicsChunks: [{letters:"r", sound:"r"}, {letters:"a", sound:"eɪ"}, {letters:"k", sound:"k"}, {letters:"e", sound:""}] },
+                { id: 'w7_24', word: "rooster", chinese: [{c:"公", p:"ㄍㄨㄥ"}, {c:"雞", p:"ㄐㄧ"}], emoji: "🐓🌅", phonicsChunks: [{letters:"r", sound:"r"}, {letters:"oo", sound:"uː"}, {letters:"s", sound:"s"}, {letters:"t", sound:"t"}, {letters:"er", sound:"ər"}] },
+                { id: 'w7_25', word: "rattle", chinese: [{c:"搖", p:"ㄧㄠˊ"}, {c:"鈴", p:"ㄌㄧㄥˊ"}], emoji: "🪇👶", phonicsChunks: [{letters:"r", sound:"r"}, {letters:"a", sound:"æ"}, {letters:"tt", sound:"t"}, {letters:"le", sound:"l"}] },
+                { id: 'w7_26', word: "rocks", chinese: [{c:"石", p:"ㄕˊ"}, {c:"頭", p:"ㄊㄡˊ"}], emoji: "🪨⛰️", phonicsChunks: [{letters:"r", sound:"r"}, {letters:"o", sound:"ɑː"}, {letters:"ck", sound:"k"}, {letters:"s", sound:"s"}] },
+                { id: 'w7_27', word: "roof", chinese: [{c:"屋", p:"ㄨ"}, {c:"頂", p:"ㄉㄧㄥˇ"}], emoji: "🏠🛖", phonicsChunks: [{letters:"r", sound:"r"}, {letters:"oo", sound:"uː"}, {letters:"f", sound:"f"}] },
+                { id: 'w7_28', word: "ruler", chinese: [{c:"尺", p:"ㄔˇ"}], emoji: "📏📐", phonicsChunks: [{letters:"r", sound:"r"}, {letters:"u", sound:"uː"}, {letters:"l", sound:"l"}, {letters:"er", sound:"ər"}] },
+                { id: 'w7_29', word: "rope", chinese: [{c:"繩", p:"ㄕㄥˊ"}, {c:"子", p:"ㄗ˙"}], emoji: "🪢➰", phonicsChunks: [{letters:"r", sound:"r"}, {letters:"o", sound:"oʊ"}, {letters:"p", sound:"p"}, {letters:"e", sound:""}] },
+                { id: 'w7_30', word: "refrigerator", chinese: [{c:"冰", p:"ㄅㄧㄥ"}, {c:"箱", p:"ㄒㄧㄤ"}], emoji: "🧊❄️", phonicsChunks: [{letters:"re", sound:"rɪ"}, {letters:"fri", sound:"frɪ"}, {letters:"ge", sound:"dʒə"}, {letters:"ra", sound:"reɪ"}, {letters:"tor", sound:"tər"}] }
+            ],
+            8: [
+                { id: 'w8_1', word: "key", chinese: [{c:"鑰", p:"ㄧㄠˋ"}, {c:"匙", p:"ㄕ˙"}], emoji: "🔑🔒", phonicsChunks: [{letters:"k", sound:"k"}, {letters:"ey", sound:"iː"}] },
+                { id: 'w8_2', word: "kiss", chinese: [{c:"親", p:"ㄑㄧㄣ"}, {c:"吻", p:"ㄨㄣˇ"}], emoji: "💋👩‍👦", phonicsChunks: [{letters:"k", sound:"k"}, {letters:"i", sound:"ɪ"}, {letters:"ss", sound:"s"}] },
+                { id: 'w8_3', word: "kite", chinese: [{c:"風", p:"ㄈㄥ"}, {c:"箏", p:"ㄓㄥ"}], emoji: "🪁🪁", phonicsChunks: [{letters:"k", sound:"k"}, {letters:"i", sound:"aɪ"}, {letters:"t", sound:"t"}, {letters:"e", sound:""}] },
+                { id: 'w8_4', word: "king", chinese: [{c:"國", p:"ㄍㄨㄛˊ"}, {c:"王", p:"ㄨㄤˊ"}], emoji: "👑🤴", phonicsChunks: [{letters:"k", sound:"k"}, {letters:"i", sound:"ɪ"}, {letters:"ng", sound:"ŋ"}] },
+                { id: 'w8_5', word: "kick", chinese: [{c:"踢", p:"ㄊㄧ"}], emoji: "🦵⚽", phonicsChunks: [{letters:"k", sound:"k"}, {letters:"i", sound:"ɪ"}, {letters:"ck", sound:"k"}] },
+                { id: 'w8_6', word: "lamp", chinese: [{c:"檯", p:"ㄊㄞˊ"}, {c:"燈", p:"ㄉㄥ"}], emoji: "💡🛋️", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"a", sound:"æ"}, {letters:"m", sound:"m"}, {letters:"p", sound:"p"}] },
+                { id: 'w8_7', word: "leg", chinese: [{c:"腿", p:"ㄊㄨㄟˇ"}], emoji: "🦵🩳", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"e", sound:"e"}, {letters:"g", sound:"g"}] },
+                { id: 'w8_8', word: "lock", chinese: [{c:"鎖", p:"ㄙㄨㄛˇ"}], emoji: "🔒🔑", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"o", sound:"ɑː"}, {letters:"ck", sound:"k"}] },
+                { id: 'w8_9', word: "letter", chinese: [{c:"信", p:"ㄒㄧㄣˋ"}, {c:"件", p:"ㄐㄧㄢˋ"}], emoji: "✉️𔤤", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"e", sound:"e"}, {letters:"tt", sound:"t"}, {letters:"er", sound:"ər"}] },
+                { id: 'w8_10', word: "ladder", chinese: [{c:"梯", p:"ㄊㄧ"}, {c:"子", p:"ㄗ˙"}], emoji: "🪜🧱", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"a", sound:"æ"}, {letters:"dd", sound:"d"}, {letters:"er", sound:"ər"}] },
+                { id: 'w8_11', word: "log", chinese: [{c:"木", p:"ㄇㄨˋ"}, {c:"頭", p:"ㄊㄡˊ"}], emoji: "🪵🌲", phonicsChunks: [{letters:"l", sound:"l"}, {letters:"o", sound:"ɑː"}, {letters:"g", sound:"g"}] },
+                { id: 'w8_12', word: "iguana", chinese: [{c:"鬣", p:"ㄌㄧㄝˋ"}, {c:"蜥", p:"ㄒㄧ"}], emoji: "🦎🌿", phonicsChunks: [{letters:"i", sound:"ɪ"}, {letters:"g", sound:"g"}, {letters:"ua", sound:"wɑː"}, {letters:"n", sound:"n"}, {letters:"a", sound:"ə"}] },
+                { id: 'w8_13', word: "insects", chinese: [{c:"昆", p:"ㄎㄨㄣ"}, {c:"蟲", p:"ㄔㄨㄥˊ"}], emoji: "🐛🐞", phonicsChunks: [{letters:"i", sound:"ɪ"}, {letters:"n", sound:"n"}, {letters:"s", sound:"s"}, {letters:"e", sound:"e"}, {letters:"c", sound:"k"}, {letters:"t", sound:"t"}, {letters:"s", sound:"s"}] },
+                { id: 'w8_14', word: "instruments", chinese: [{c:"樂", p:"ㄩㄝˋ"}, {c:"器", p:"ㄑㄧˋ"}], emoji: "🎺🎸", phonicsChunks: [{letters:"i", sound:"ɪ"}, {letters:"n", sound:"n"}, {letters:"s", sound:"s"}, {letters:"t", sound:"t"}, {letters:"ru", sound:"rə"}, {letters:"m", sound:"m"}, {letters:"en", sound:"ən"}, {letters:"t", sound:"t"}, {letters:"s", sound:"s"}] },
+                { id: 'w8_15', word: "chick", chinese: [{c:"小", p:"ㄒㄧㄠˇ"}, {c:"雞", p:"ㄐㄧ"}], emoji: "🐥🐣", phonicsChunks: [{letters:"ch", sound:"tʃ"}, {letters:"i", sound:"ɪ"}, {letters:"ck", sound:"k"}] },
+                { id: 'w8_16', word: "milk", chinese: [{c:"牛", p:"ㄋㄧㄡˊ"}, {c:"奶", p:"ㄋㄞˇ"}], emoji: "🥛🐮", phonicsChunks: [{letters:"m", sound:"m"}, {letters:"i", sound:"ɪ"}, {letters:"l", sound:"l"}, {letters:"k", sound:"k"}] },
+                { id: 'w8_17', word: "dishes", chinese: [{c:"盤", p:"ㄆㄢˊ"}, {c:"子", p:"ㄗ˙"}], emoji: "🍽️🥣", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"i", sound:"ɪ"}, {letters:"sh", sound:"ʃ"}, {letters:"es", sound:"ɪz"}] },
+                { id: 'w8_18', word: "fish", chinese: [{c:"魚", p:"ㄩˊ"}], emoji: "🐟🐠", phonicsChunks: [{letters:"f", sound:"f"}, {letters:"i", sound:"ɪ"}, {letters:"sh", sound:"ʃ"}] },
+                { id: 'w8_19', word: "wig", chinese: [{c:"假", p:"ㄐㄧㄚˇ"}, {c:"髮", p:"ㄈㄚˇ"}], emoji: "🧑‍🦰👩‍🦳", phonicsChunks: [{letters:"w", sound:"w"}, {letters:"i", sound:"ɪ"}, {letters:"g", sound:"g"}] },
+                { id: 'w8_20', word: "bib", chinese: [{c:"圍", p:"ㄨㄟˊ"}, {c:"兜", p:"ㄉㄡ"}], emoji: "👶🍼", phonicsChunks: [{letters:"b", sound:"b"}, {letters:"i", sound:"ɪ"}, {letters:"b", sound:"b"}] },
+                { id: 'w8_21', word: "goat", chinese: [{c:"山", p:"ㄕㄢ"}, {c:"羊", p:"ㄧㄤˊ"}], emoji: "🐐🌿", phonicsChunks: [{letters:"g", sound:"g"}, {letters:"oa", sound:"oʊ"}, {letters:"t", sound:"t"}] },
+                { id: 'w8_22', word: "gate", chinese: [{c:"大", p:"ㄉㄚˋ"}, {c:"門", p:"ㄇㄣˊ"}], emoji: "🚪🏡", phonicsChunks: [{letters:"g", sound:"g"}, {letters:"a", sound:"eɪ"}, {letters:"t", sound:"t"}, {letters:"e", sound:""}] },
+                { id: 'w8_23', word: "guitar", chinese: [{c:"吉", p:"ㄐㄧˊ"}, {c:"他", p:"ㄊㄚ"}], emoji: "🎸🎶", phonicsChunks: [{letters:"g", sound:"g"}, {letters:"ui", sound:"ɪ"}, {letters:"t", sound:"t"}, {letters:"ar", sound:"ɑːr"}] },
+                { id: 'w8_24', word: "garden", chinese: [{c:"花", p:"ㄏㄨㄚ"}, {c:"園", p:"ㄩㄢˊ"}], emoji: "🪴🌷", phonicsChunks: [{letters:"g", sound:"g"}, {letters:"ar", sound:"ɑːr"}, {letters:"d", sound:"d"}, {letters:"en", sound:"ən"}] },
+                { id: 'w8_25', word: "goose", chinese: [{c:"鵝", p:"ㄜˊ"}], emoji: "🪿🌊", phonicsChunks: [{letters:"g", sound:"g"}, {letters:"oo", sound:"uː"}, {letters:"s", sound:"s"}, {letters:"e", sound:""}] },
+                { id: 'w8_26', word: "gas", chinese: [{c:"瓦", p:"ㄨㄚˇ"}, {c:"斯", p:"ㄙ"}], emoji: "⛽🚗", phonicsChunks: [{letters:"g", sound:"g"}, {letters:"a", sound:"æ"}, {letters:"s", sound:"s"}] },
+                { id: 'w8_27', word: "girl", chinese: [{c:"女", p:"ㄋㄩˇ"}, {c:"孩", p:"ㄏㄞˊ"}], emoji: "👧👩", phonicsChunks: [{letters:"g", sound:"g"}, {letters:"ir", sound:"ɜːr"}, {letters:"l", sound:"l"}] },
+                { id: 'w8_28', word: "game", chinese: [{c:"遊", p:"ㄧㄡˊ"}, {c:"戲", p:"ㄒㄧˋ"}], emoji: "🎮🕹️", phonicsChunks: [{letters:"g", sound:"g"}, {letters:"a", sound:"eɪ"}, {letters:"m", sound:"m"}, {letters:"e", sound:""}] }
+            ],
+            9: [
+                { id: 'w9_1', word: "map", chinese: [{c:"地", p:"ㄉㄧˋ"}, {c:"圖", p:"ㄊㄨˊ"}], emoji: "🗺️📍", phonicsChunks: [{letters:"m", sound:"m"}, {letters:"a", sound:"æ"}, {letters:"p", sound:"p"}] },
+                { id: 'w9_2', word: "man", chinese: [{c:"男", p:"ㄋㄢˊ"}, {c:"人", p:"ㄖㄣˊ"}], emoji: "👨🧔", phonicsChunks: [{letters:"m", sound:"m"}, {letters:"a", sound:"æ"}, {letters:"n", sound:"n"}] },
+                { id: 'w9_3', word: "mask", chinese: [{c:"面", p:"ㄇㄧㄢˋ"}, {c:"具", p:"ㄐㄩˋ"}], emoji: "🎭😷", phonicsChunks: [{letters:"m", sound:"m"}, {letters:"a", sound:"æ"}, {letters:"s", sound:"s"}, {letters:"k", sound:"k"}] },
+                { id: 'w9_4', word: "magnet", chinese: [{c:"磁", p:"ㄘˊ"}, {c:"鐵", p:"ㄊㄧㄝˇ"}], emoji: "🧲⚡", phonicsChunks: [{letters:"m", sound:"m"}, {letters:"a", sound:"æ"}, {letters:"g", sound:"g"}, {letters:"n", sound:"n"}, {letters:"e", sound:"e"}, {letters:"t", sound:"t"}] },
+                { id: 'w9_5', word: "milk", chinese: [{c:"牛", p:"ㄋㄧㄡˊ"}, {c:"奶", p:"ㄋㄞˇ"}], emoji: "🥛🐮", phonicsChunks: [{letters:"m", sound:"m"}, {letters:"i", sound:"ɪ"}, {letters:"l", sound:"l"}, {letters:"k", sound:"k"}] },
+                { id: 'w9_6', word: "mop", chinese: [{c:"拖", p:"ㄊㄨㄛ"}, {c:"把", p:"ㄅㄚˇ"}], emoji: "🧹🪣", phonicsChunks: [{letters:"m", sound:"m"}, {letters:"o", sound:"ɑː"}, {letters:"p", sound:"p"}] },
+                { id: 'w9_7', word: "moon", chinese: [{c:"月", p:"ㄩㄝˋ"}, {c:"亮", p:"ㄌㄧㄤˋ"}], emoji: "🌙🌌", phonicsChunks: [{letters:"m", sound:"m"}, {letters:"oo", sound:"uː"}, {letters:"n", sound:"n"}] },
+                { id: 'w9_8', word: "nose", chinese: [{c:"鼻", p:"ㄅㄧˊ"}, {c:"子", p:"ㄗ˙"}], emoji: "👃👃", phonicsChunks: [{letters:"n", sound:"n"}, {letters:"o", sound:"oʊ"}, {letters:"s", sound:"z"}, {letters:"e", sound:""}] },
+                { id: 'w9_9', word: "neck", chinese: [{c:"脖", p:"ㄅㄛˊ"}, {c:"子", p:"ㄗ˙"}], emoji: "🧣💆‍♂️", phonicsChunks: [{letters:"n", sound:"n"}, {letters:"e", sound:"e"}, {letters:"ck", sound:"k"}] },
+                { id: 'w9_10', word: "nest", chinese: [{c:"鳥", p:"ㄋㄧㄠˇ"}, {c:"巢", p:"ㄔㄠˊ"}], emoji: "🪹🐦", phonicsChunks: [{letters:"n", sound:"n"}, {letters:"e", sound:"e"}, {letters:"s", sound:"s"}, {letters:"t", sound:"t"}] },
+                { id: 'w9_11', word: "nail", chinese: [{c:"釘", p:"ㄉㄧㄥ"}, {c:"子", p:"ㄗ˙"}], emoji: "🔨💅", phonicsChunks: [{letters:"n", sound:"n"}, {letters:"ai", sound:"eɪ"}, {letters:"l", sound:"l"}] },
+                { id: 'w9_12', word: "nine", chinese: [{c:"九", p:"ㄐㄧㄡˇ"}], emoji: "9️⃣🕘", phonicsChunks: [{letters:"n", sound:"n"}, {letters:"i", sound:"aɪ"}, {letters:"n", sound:"n"}, {letters:"e", sound:""}] },
+                { id: 'w9_13', word: "net", chinese: [{c:"網", p:"ㄨㄤˇ"}, {c:"子", p:"ㄗ˙"}], emoji: "🕸️🥅", phonicsChunks: [{letters:"n", sound:"n"}, {letters:"e", sound:"e"}, {letters:"t", sound:"t"}] },
+                { id: 'w9_14', word: "nut", chinese: [{c:"堅", p:"ㄐㄧㄢ"}, {c:"果", p:"ㄍㄨㄛˇ"}], emoji: "🥜🐿️", phonicsChunks: [{letters:"n", sound:"n"}, {letters:"u", sound:"ʌ"}, {letters:"t", sound:"t"}] },
+                { id: 'w9_15', word: "dog", chinese: [{c:"狗", p:"ㄍㄡˇ"}], emoji: "🐶🐕", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"o", sound:"ɔː"}, {letters:"g", sound:"g"}] },
+                { id: 'w9_16', word: "doctor", chinese: [{c:"醫", p:"ㄧ"}, {c:"生", p:"ㄕㄥ"}], emoji: "👨‍⚕️🏥", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"o", sound:"ɑː"}, {letters:"c", sound:"k"}, {letters:"t", sound:"t"}, {letters:"or", sound:"ər"}] },
+                { id: 'w9_17', word: "desk", chinese: [{c:"書", p:"ㄕㄨ"}, {c:"桌", p:"ㄓㄨㄛ"}], emoji: "🪑📚", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"e", sound:"e"}, {letters:"s", sound:"s"}, {letters:"k", sound:"k"}] },
+                { id: 'w9_18', word: "door", chinese: [{c:"門", p:"ㄇㄣˊ"}], emoji: "🚪🚪", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"oor", sound:"ɔːr"}] },
+                { id: 'w9_19', word: "doll", chinese: [{c:"洋", p:"ㄧㄤˊ"}, {c:"娃", p:"ㄨㄚˊ"}, {c:"娃", p:"ㄨㄚ˙"}], emoji: "🎎🧸", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"o", sound:"ɑː"}, {letters:"ll", sound:"l"}] },
+                { id: 'w9_20', word: "dishes", chinese: [{c:"盤", p:"ㄆㄢˊ"}, {c:"子", p:"ㄗ˙"}], emoji: "🍽️🥣", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"i", sound:"ɪ"}, {letters:"sh", sound:"ʃ"}, {letters:"es", sound:"ɪz"}] },
+                { id: 'w9_21', word: "duck", chinese: [{c:"鴨", p:"ㄧㄚ"}, {c:"子", p:"ㄗ˙"}], emoji: "🦆🦆", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"u", sound:"ʌ"}, {letters:"ck", sound:"k"}] },
+                { id: 'w9_22', word: "deer", chinese: [{c:"鹿", p:"ㄌㄨˋ"}], emoji: "🦌🌲", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"eer", sound:"ɪr"}] },
+                { id: 'w9_23', word: "dinosaur", chinese: [{c:"恐", p:"ㄎㄨㄥˇ"}, {c:"龍", p:"ㄌㄨㄥˊ"}], emoji: "🦖🦕", phonicsChunks: [{letters:"d", sound:"d"}, {letters:"i", sound:"aɪ"}, {letters:"n", sound:"n"}, {letters:"o", sound:"ə"}, {letters:"s", sound:"s"}, {letters:"aur", sound:"ɔːr"}] },
+                { id: 'w9_24', word: "jacket", chinese: [{c:"外", p:"ㄨㄞˋ"}, {c:"套", p:"ㄊㄠˋ"}], emoji: "🧥🥶", phonicsChunks: [{letters:"j", sound:"dʒ"}, {letters:"a", sound:"æ"}, {letters:"ck", sound:"k"}, {letters:"e", sound:"ɪ"}, {letters:"t", sound:"t"}] },
+                { id: 'w9_25', word: "jar", chinese: [{c:"罐", p:"ㄍㄨㄢˋ"}, {c:"子", p:"ㄗ˙"}], emoji: "𫪔🍯", phonicsChunks: [{letters:"j", sound:"dʒ"}, {letters:"ar", sound:"ɑːr"}] },
+                { id: 'w9_26', word: "jewelry", chinese: [{c:"珠", p:"ㄓㄨ"}, {c:"寶", p:"ㄅㄠˇ"}], emoji: "💎💍", phonicsChunks: [{letters:"j", sound:"dʒ"}, {letters:"ew", sound:"uː"}, {letters:"el", sound:"əl"}, {letters:"r", sound:"r"}, {letters:"y", sound:"i"}] },
+                { id: 'w9_27', word: "jack-in-the-box", chinese: [{c:"驚", p:"ㄐㄧㄥ"}, {c:"嚇", p:"ㄒㄧㄚˋ"}, {c:"箱", p:"ㄒㄧㄤ"}], emoji: "🤡📦", phonicsChunks: [{letters:"j", sound:"dʒ"}, {letters:"a", sound:"æ"}, {letters:"ck", sound:"k"}, {letters:"i", sound:"ɪ"}, {letters:"n", sound:"n"}, {letters:"th", sound:"ð"}, {letters:"e", sound:"ə"}, {letters:"b", sound:"b"}, {letters:"o", sound:"ɑː"}, {letters:"x", sound:"ks"}] },
+                { id: 'w9_28', word: "jump rope", chinese: [{c:"跳", p:"ㄊㄧㄠˋ"}, {c:"繩", p:"ㄕㄥˊ"}], emoji: "➰🏃", phonicsChunks: [{letters:"j", sound:"dʒ"}, {letters:"u", sound:"ʌ"}, {letters:"m", sound:"m"}, {letters:"p", sound:"p"}, {letters:"r", sound:"r"}, {letters:"o", sound:"oʊ"}, {letters:"p", sound:"p"}, {letters:"e", sound:""}] },
+                { id: 'w9_29', word: "jug", chinese: [{c:"水", p:"ㄕㄨㄟˇ"}, {c:"壺", p:"ㄏㄨˊ"}], emoji: "🏺💦", phonicsChunks: [{letters:"j", sound:"dʒ"}, {letters:"u", sound:"ʌ"}, {letters:"g", sound:"g"}] },
+                { id: 'w9_30', word: "jet", chinese: [{c:"噴", p:"ㄆㄣ"}, {c:"射", p:"ㄕㄜˋ"}, {c:"機", p:"ㄐㄧ"}], emoji: "🛩️✈️", phonicsChunks: [{letters:"j", sound:"dʒ"}, {letters:"e", sound:"e"}, {letters:"t", sound:"t"}] },
+                { id: 'w9_31', word: "jeep", chinese: [{c:"吉", p:"ㄐㄧˊ"}, {c:"普", p:"ㄆㄨˇ"}, {c:"車", p:"ㄔㄜ"}], emoji: "🚙⛰️", phonicsChunks: [{letters:"j", sound:"dʒ"}, {letters:"ee", sound:"iː"}, {letters:"p", sound:"p"}] }
+            ]
+        };
+
+        let currentTab = 'learn';
+        let currentWeek = 'SpellingBee2';
+        let wrongWords = []; 
+        
+        let quizState = {
+            currentIndex: 0,
+            isAnswerRevealed: false,
+            isUpperCase: true,
+            list: []
+        };
+
+        const mainContent = document.getElementById('main-content');
+        const weekSelector = document.getElementById('weekSelector');
+        
+        const synth = window.speechSynthesis;
+
+        function init() {
+            weekSelector.addEventListener('change', (e) => {
+                currentWeek = e.target.value;
+                resetQuizState();
+                renderCurrentTab();
+            });
+            switchTab('learn');
+        }
+
+        function speakEnglish(text, rate = 0.9) {
+            if (!synth) return;
+            synth.cancel();
+            
+            if (text.trim() === '' || text === '-') return;
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            utterance.rate = rate;
+            synth.speak(utterance);
+        }
+
+        function speakChinese(text) {
+            if (!synth) return;
+            synth.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'zh-TW';
+            utterance.rate = 0.9;
+            synth.speak(utterance);
+        }
+
+        function playOops() {
+            if (!synth) return;
+            synth.cancel();
+            const utterance = new SpeechSynthesisUtterance("Oh no!");
+            utterance.lang = 'en-US';
+            utterance.pitch = 0.5; 
+            utterance.rate = 1.2;
+            synth.speak(utterance);
+        }
+
+        let currentSpellToken = 0; 
+
+        async function spellWordAndHighlight(wordObj, containerId) {
+            if (!synth) return;
+            
+            synth.cancel(); 
+            currentSpellToken++; 
+            const myToken = currentSpellToken;
+            
+            const word = wordObj.word;
+            const container = containerId ? document.getElementById(containerId) : null;
+            const spans = container ? container.querySelectorAll('.letter-span') : [];
+            
+            for (let i = 0; i < word.length; i++) {
+                if (currentSpellToken !== myToken) return; 
+                
+                const letter = word[i];
+                
+                if (spans.length > 0) {
+                    spans.forEach(s => s.classList.remove('letter-highlight')); 
+                    if(spans[i]) spans[i].classList.add('letter-highlight'); 
+                }
+
+                if (letter.trim() === '' || letter === '-') {
+                     await new Promise(resolve => setTimeout(resolve, 400));
+                     continue;
+                }
+
+                const utterance = new SpeechSynthesisUtterance(letter.toUpperCase() + ",");
+                utterance.lang = 'en-US';
+                utterance.rate = 0.8;
+                synth.speak(utterance);
+
+                await new Promise(resolve => setTimeout(resolve, 800));
+            }
+            
+            if (currentSpellToken !== myToken) return;
+            
+            if (spans.length > 0) {
+                spans.forEach(s => s.classList.remove('letter-highlight'));
+            }
+            speakEnglish(word, 1); 
+        }
+
+        function generateRubyHTML(chineseArr) {
+            return chineseArr.map(item => `<ruby>${item.c}<rt>${item.p}</rt></ruby>`).join('');
+        }
+        
+        function getChinesePlainText(chineseArr) {
+             return chineseArr.map(item => item.c).join('');
+        }
+
+        function switchTab(tabName) {
+            currentTab = tabName;
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('opacity-100');
+                btn.classList.add('opacity-50');
+            });
+            const activeTab = document.getElementById(`tab-${tabName}`);
+            activeTab.classList.remove('opacity-50');
+            activeTab.classList.add('opacity-100');
+
+            weekSelector.style.visibility = (tabName === 'review') ? 'hidden' : 'visible';
+
+            resetQuizState();
+            renderCurrentTab();
+        }
+
+        function resetQuizState() {
+            quizState.currentIndex = 0;
+            quizState.isAnswerRevealed = false;
+            quizState.list = (currentTab === 'review') ? [...wrongWords] : [...vocabularyData[currentWeek]];
+            
+            if(currentTab === 'speak' || currentTab === 'write') {
+                quizState.list.sort(() => Math.random() - 0.5);
+            }
+        }
+
+        function renderCurrentTab() {
+            mainContent.innerHTML = '';
+            if (synth) synth.cancel(); 
+
+            if (currentTab === 'learn') renderLearnTab();
+            else if (currentTab === 'speak') renderSpeakTab();
+            else if (currentTab === 'write') renderWriteTab();
+            else if (currentTab === 'review') renderReviewTab();
+        }
+
+        function renderLearnTab() {
+            const words = vocabularyData[currentWeek];
+            const container = document.createElement('div');
+            container.className = 'grid grid-cols-1 sm:grid-cols-2 gap-4 pb-10';
+
+            words.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-3xl p-5 shadow-sm border-2 border-slate-100 flex flex-col items-center pop-in hover:shadow-md transition-shadow';
+                
+                const wordSpans = item.word.split('').map((char, index) => 
+                    `<span class="letter-transition letter-span font-black" data-index="${index}">${char}</span>`
+                ).join('');
+
+                const phonicsHTML = item.phonicsChunks.map(chunk => 
+                    `<button onclick="speakEnglish('${chunk.sound || chunk.letters}', 0.7); highlightPhonics(this)" 
+                             class="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg font-bold text-lg btn-press hover:bg-blue-200">
+                        ${chunk.letters}
+                    </button>`
+                ).join('');
+
+                card.innerHTML = `
+                    <div class="text-7xl mb-4">${item.emoji}</div>
+                    
+                    <div class="flex items-center gap-3 mb-2 text-center flex-wrap justify-center">
+                        <div id="word-${item.id}" class="text-4xl sm:text-5xl text-slate-700 tracking-wider">
+                            ${wordSpans}
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-2 mb-4">
+                        <button onclick="speakEnglish('${item.word}')" class="bg-indigo-100 text-indigo-700 p-3 rounded-full btn-press flex items-center justify-center border border-indigo-200 hover:bg-indigo-200">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"></path></svg>
+                        </button>
+                        <button onclick="spellWordAndHighlight(${JSON.stringify(item).replace(/"/g, '&quot;')}, 'word-${item.id}')" class="bg-fuchsia-100 text-fuchsia-700 px-4 py-2 rounded-2xl btn-press font-bold text-sm flex items-center gap-1 border border-fuchsia-200 hover:bg-fuchsia-200">
+                            <span>A-B-C</span>拼字
+                        </button>
+                    </div>
+
+                    <div class="flex flex-wrap justify-center gap-1 mb-4 bg-gray-50 p-2 rounded-xl w-full">
+                        <span class="text-xs text-gray-400 font-bold block w-full text-center mb-1">自然發音</span>
+                        ${phonicsHTML}
+                    </div>
+
+                    <div class="flex items-center gap-2 mt-auto pt-4 border-t-2 border-dashed border-gray-200 w-full justify-center">
+                        <div>${generateRubyHTML(item.chinese)}</div>
+                        <button onclick="speakChinese('${getChinesePlainText(item.chinese)}')" class="bg-orange-100 text-orange-600 p-2 rounded-full btn-press hover:bg-orange-200">
+                             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"></path></svg>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+            mainContent.appendChild(container);
+        }
+
+        function highlightPhonics(btn) {
+            btn.classList.add('bg-blue-500', 'text-white');
+            setTimeout(() => {
+                btn.classList.remove('bg-blue-500', 'text-white');
+            }, 500);
+        }
+
+        function renderSpeakTab() {
+            if (quizState.list.length === 0) return renderEmptyQuizMessage();
+            if (quizState.currentIndex >= quizState.list.length) return renderQuizFinished();
+
+            const item = quizState.list[quizState.currentIndex];
+            const cardId = `speak-card-${item.id}`;
+
+            const container = document.createElement('div');
+            container.className = 'flex-grow flex flex-col items-center justify-center h-full pop-in';
+            container.innerHTML = `
+                <div class="text-center mb-8">
+                    <span class="bg-yellow-200 text-yellow-800 px-4 py-2 rounded-full font-bold text-lg shadow-sm">
+                        看圖說英文 (${quizState.currentIndex + 1} / ${quizState.list.length})
+                    </span>
+                </div>
+
+                <div id="${cardId}" class="bg-white rounded-[3rem] p-10 sm:p-16 shadow-lg border-4 border-yellow-300 flex flex-col items-center w-full max-w-md relative transition-transform">
+                    <div class="text-9xl mb-8">${item.emoji}</div>
+                    
+                    ${!quizState.isAnswerRevealed ? 
+                        `<button onclick="revealAnswer()" class="bg-yellow-400 hover:bg-yellow-500 text-white font-black text-2xl py-4 px-10 rounded-full shadow-lg btn-press w-full transition-colors">
+                            看答案 👀
+                        </button>` 
+                        : 
+                        `<div class="flex flex-col items-center w-full animate-[popIn_0.3s_ease-out]">
+                            <h2 class="text-5xl sm:text-6xl font-black text-slate-800 mb-2 text-center break-words">${item.word}</h2>
+                            <div class="mb-8">${generateRubyHTML(item.chinese)}</div>
+                            <button onclick="speakEnglish('${item.word}')" class="bg-indigo-100 text-indigo-700 p-4 rounded-full btn-press mb-8 border border-indigo-200 hover:bg-indigo-200">
+                                <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"></path></svg>
+                            </button>
+                            <div class="flex gap-6 w-full justify-center">
+                                <button onclick="handleResult(false, '${cardId}')" class="bg-rose-500 hover:bg-rose-600 text-white font-black text-3xl p-6 rounded-3xl shadow-lg btn-press flex-1 transition-colors">
+                                    ❌ <br><span class="text-lg">我答錯</span>
+                                </button>
+                                <button onclick="handleResult(true, '${cardId}')" class="bg-green-500 hover:bg-green-600 text-white font-black text-3xl p-6 rounded-3xl shadow-lg btn-press flex-1 transition-colors">
+                                    ⭕️ <br><span class="text-lg">我答對</span>
+                                </button>
+                            </div>
+                        </div>`
+                    }
+                </div>
+            `;
+            mainContent.appendChild(container);
+            
+            if(quizState.isAnswerRevealed) {
+                setTimeout(() => speakEnglish(item.word), 100);
+            }
+        }
+
+        function revealAnswer() {
+            quizState.isAnswerRevealed = true;
+            renderCurrentTab();
+        }
+
+        function handleResult(isCorrect, cardId) {
+            const item = quizState.list[quizState.currentIndex];
+            
+            if (!isCorrect) {
+                playOops();
+                addWrongWord(item);
+                
+                const card = document.getElementById(cardId);
+                card.classList.add('animate-eat');
+                
+                setTimeout(() => {
+                    quizState.currentIndex++;
+                    quizState.isAnswerRevealed = false;
+                    renderCurrentTab();
+                }, 1000);
+            } else {
+                if (synth) {
+                    const utterance = new SpeechSynthesisUtterance("Good job!");
+                    utterance.lang = 'en-US';
+                    utterance.rate = 1.2;
+                    synth.speak(utterance);
+                }
+                
+                quizState.currentIndex++;
+                quizState.isAnswerRevealed = false;
+                renderCurrentTab();
+            }
+        }
+
+        function addWrongWord(item) {
+            if (!wrongWords.find(w => w.id === item.id)) {
+                wrongWords.push(item);
+                updateMonsterBadge();
+            }
+        }
+
+        function updateMonsterBadge() {
+            const badge = document.getElementById('monster-badge');
+            if (wrongWords.length > 0) {
+                badge.textContent = wrongWords.length;
+                badge.classList.remove('hidden');
+                badge.classList.add('animate-bounce');
+                setTimeout(() => badge.classList.remove('animate-bounce'), 1000);
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        function renderWriteTab() {
+            if (quizState.list.length === 0) return renderEmptyQuizMessage();
+            if (quizState.currentIndex >= quizState.list.length) return renderQuizFinished();
+
+            const item = quizState.list[quizState.currentIndex];
+            const cardId = `write-card-${item.id}`;
+            const wordId = `write-word-${item.id}`;
+            const displayWord = quizState.isUpperCase ? item.word.toUpperCase() : item.word.toLowerCase();
+
+            const wordSpans = displayWord.split('').map((char, index) => 
+                `<span class="letter-transition letter-span" data-index="${index}">${char}</span>`
+            ).join('');
+
+            const container = document.createElement('div');
+            container.className = 'flex-grow flex flex-col items-center justify-center h-full pop-in';
+            container.innerHTML = `
+                <div class="text-center mb-8">
+                    <span class="bg-purple-200 text-purple-800 px-4 py-2 rounded-full font-bold text-lg shadow-sm">
+                        聽聲音寫寫看 (${quizState.currentIndex + 1} / ${quizState.list.length})
+                    </span>
+                </div>
+
+                <div id="${cardId}" class="bg-white rounded-[3rem] p-8 sm:p-12 shadow-lg border-4 border-purple-300 flex flex-col items-center w-full max-w-md relative transition-transform">
+                    
+                    ${!quizState.isAnswerRevealed ? 
+                        `
+                        <div class="text-6xl mb-6">📝</div>
+                        <button onclick="speakEnglish('${item.word}', 0.8)" class="bg-purple-500 hover:bg-purple-600 text-white p-8 rounded-full shadow-xl btn-press mb-8 animate-pulse transition-colors">
+                            <svg class="w-20 h-20" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"></path></svg>
+                        </button>
+                        <p class="text-xl font-bold text-slate-500 mb-8">仔細聽，寫在紙上喔！</p>
+                        <button onclick="revealAnswer()" class="bg-purple-400 hover:bg-purple-500 text-white font-black text-2xl py-4 px-10 rounded-full shadow-lg btn-press w-full transition-colors">
+                            看答案 👀
+                        </button>
+                        ` 
+                        : 
+                        `
+                        <div class="text-6xl mb-4">${item.emoji}</div>
+                        <h2 id="${wordId}" class="text-4xl sm:text-5xl font-black text-slate-800 mb-2 tracking-widest font-mono text-center flex-wrap flex justify-center">${wordSpans}</h2>
+                        <div class="mb-6">${generateRubyHTML(item.chinese)}</div>
+                        
+                        <div class="flex gap-2 sm:gap-4 w-full mb-8">
+                            <button onclick="toggleCase()" class="flex-1 bg-slate-200 text-slate-700 py-3 rounded-2xl font-bold btn-press hover:bg-slate-300 text-sm">
+                                大/小寫<br><span class="text-lg">Aa</span>
+                            </button>
+                            <button onclick="speakChinese('${getChinesePlainText(item.chinese)}')" class="flex-1 bg-orange-100 text-orange-700 py-3 rounded-2xl font-bold btn-press hover:bg-orange-200 text-sm flex flex-col items-center justify-center">
+                                唸中文<br><span class="text-lg">🇹🇼</span>
+                            </button>
+                            <button onclick="spellWordAndHighlight({word:'${displayWord}'}, '${wordId}')" class="flex-1 bg-indigo-100 text-indigo-700 py-3 rounded-2xl font-bold btn-press hover:bg-indigo-200 text-sm flex flex-col items-center justify-center">
+                                拼字母<br><span class="text-lg">🔤</span>
+                            </button>
+                        </div>
+
+                        <div class="flex gap-6 w-full justify-center">
+                            <button onclick="handleResult(false, '${cardId}')" class="bg-rose-500 hover:bg-rose-600 text-white font-black text-3xl p-6 rounded-3xl shadow-lg btn-press flex-1 transition-colors">
+                                ❌ <br><span class="text-lg">寫錯了</span>
+                            </button>
+                            <button onclick="handleResult(true, '${cardId}')" class="bg-green-500 hover:bg-green-600 text-white font-black text-3xl p-6 rounded-3xl shadow-lg btn-press flex-1 transition-colors">
+                                ⭕ <br><span class="text-lg">全對！</span>
+                            </button>
+                        </div>
+                        `
+                    }
+                </div>
+            `;
+            mainContent.appendChild(container);
+            
+            if(!quizState.isAnswerRevealed) {
+                setTimeout(() => speakEnglish(item.word, 0.8), 500);
+            } else {
+                 setTimeout(() => speakEnglish(item.word), 100);
+            }
+        }
+
+        function toggleCase() {
+            quizState.isUpperCase = !quizState.isUpperCase;
+            renderCurrentTab();
+        }
+
+        function renderReviewTab() {
+            if (wrongWords.length === 0) {
+                mainContent.innerHTML = `
+                    <div class="flex-grow flex flex-col items-center justify-center h-full pop-in text-center">
+                        <div class="text-8xl mb-6">🎉</div>
+                        <h2 class="text-3xl font-black text-green-600 mb-4">太棒了！</h2>
+                        <p class="text-xl font-bold text-slate-600">怪獸本空空的，沒有答錯的單字喔！</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const container = document.createElement('div');
+            container.className = 'w-full pop-in';
+            
+            const header = document.createElement('div');
+            header.className = 'bg-rose-100 text-rose-800 p-4 rounded-3xl mb-6 text-center font-bold text-xl flex items-center justify-center gap-2 border-2 border-rose-200 shadow-sm';
+            header.innerHTML = `👾 這些是被怪獸吃掉的單字，再來複習一次吧！`;
+            container.appendChild(header);
+
+            const grid = document.createElement('div');
+            grid.className = 'grid grid-cols-1 sm:grid-cols-2 gap-4 pb-10';
+
+            wrongWords.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'bg-rose-50 rounded-3xl p-5 shadow-sm border-2 border-rose-200 flex flex-col items-center pop-in relative hover:shadow-md transition-shadow';
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'absolute top-3 right-3 bg-white text-rose-500 border border-rose-200 px-3 py-1 rounded-full text-sm font-bold shadow-sm btn-press hover:bg-rose-100';
+                removeBtn.innerHTML = '已學會 🌟';
+                removeBtn.onclick = () => {
+                    wrongWords = wrongWords.filter(w => w.id !== item.id);
+                    updateMonsterBadge();
+                    renderCurrentTab();
+                };
+                card.appendChild(removeBtn);
+
+                const wordSpans = item.word.split('').map((char, index) => 
+                    `<span class="letter-transition letter-span font-black" data-index="${index}">${char}</span>`
+                ).join('');
+
+                const phonicsHTML = item.phonicsChunks.map(chunk => 
+                    `<button onclick="speakEnglish('${chunk.sound || chunk.letters}', 0.7); highlightPhonics(this)" 
+                             class="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg font-bold text-lg btn-press hover:bg-blue-200">
+                        ${chunk.letters}
+                    </button>`
+                ).join('');
+
+                card.innerHTML += `
+                    <div class="text-7xl mb-4 mt-4">${item.emoji}</div>
+                    <div class="flex items-center gap-3 mb-2 text-center flex-wrap justify-center">
+                        <div id="review-word-${item.id}" class="text-4xl sm:text-5xl text-slate-700 tracking-wider">
+                            ${wordSpans}
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-2 mb-4">
+                        <button onclick="speakEnglish('${item.word}')" class="bg-rose-200 text-rose-800 p-3 rounded-full btn-press flex items-center justify-center hover:bg-rose-300">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"></path></svg>
+                        </button>
+                        <button onclick="spellWordAndHighlight(${JSON.stringify(item).replace(/"/g, '&quot;')}, 'review-word-${item.id}')" class="bg-rose-200 text-rose-800 px-4 py-2 rounded-2xl btn-press font-bold text-sm flex items-center gap-1 hover:bg-rose-300">
+                            <span>A-B-C</span>拼字
+                        </button>
+                    </div>
+
+                    <div class="flex flex-wrap justify-center gap-1 mb-4 bg-white/50 p-2 rounded-xl w-full">
+                        <span class="text-xs text-rose-400 font-bold block w-full text-center mb-1">自然發音</span>
+                        ${phonicsHTML}
+                    </div>
+
+                    <div class="flex items-center gap-2 mt-auto pt-4 border-t-2 border-dashed border-rose-200 w-full justify-center">
+                        <div>${generateRubyHTML(item.chinese)}</div>
+                        <button onclick="speakChinese('${getChinesePlainText(item.chinese)}')" class="bg-orange-100 text-orange-600 p-2 rounded-full btn-press hover:bg-orange-200">
+                             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"></path></svg>
+                        </button>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+            
+            container.appendChild(grid);
+            mainContent.appendChild(container);
+        }
+
+        function renderEmptyQuizMessage() {
+            mainContent.innerHTML = `
+                <div class="flex-grow flex flex-col items-center justify-center h-full pop-in text-center">
+                    <div class="text-8xl mb-6">🤔</div>
+                    <h2 class="text-3xl font-black text-slate-600 mb-4">沒有找到單字耶</h2>
+                    <p class="text-xl font-bold text-slate-500">請確認是否選擇了正確的週次。</p>
+                </div>
+            `;
+        }
+
+        function renderQuizFinished() {
+            mainContent.innerHTML = `
+                <div class="flex-grow flex flex-col items-center justify-center h-full pop-in text-center">
+                    <div class="text-8xl mb-6">🏆</div>
+                    <h2 class="text-4xl font-black text-yellow-500 mb-4 drop-shadow-md">太棒了！</h2>
+                    <p class="text-xl font-bold text-slate-600 mb-8">你完成了所有測驗！</p>
+                    <button onclick="resetQuizState(); renderCurrentTab();" class="bg-blue-500 hover:bg-blue-600 text-white font-bold text-2xl py-4 px-10 rounded-full shadow-lg btn-press transition-colors">
+                        再玩一次 🔄
+                    </button>
+                </div>
+            `;
+            
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 150,
+                    spread: 70,
+                    origin: { y: 0.6 },
+                    colors: ['#3b82f6', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6']
+                });
+            }
+
+            if (synth) {
+                setTimeout(() => {
+                    const utterance = new SpeechSynthesisUtterance("You are amazing!");
+                    utterance.lang = 'en-US';
+                    utterance.rate = 1;
+                    synth.speak(utterance);
+                }, 500);
+            }
+        }
+
+        window.onload = init;
+
+    </script>
+</body>
+</html>

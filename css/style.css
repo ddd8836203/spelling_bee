@@ -1,0 +1,251 @@
+/* ========================================================
+   🌟 寶貝英語大冒險 (iPad & 觸控優化專用樣式表)
+   ======================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;800;900&display=swap');
+
+:root {
+    --primary-green: #22c55e;
+    --primary-blue: #3b82f6;
+    --primary-amber: #f59e0b;
+    --primary-purple: #a855f7;
+    --primary-rose: #f43f5e;
+    --bg-mint: #f0fdf4;
+}
+
+* {
+    /* 防止 iPad 雙擊連點誤觸放大，確保點擊極速響應 */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Nunito', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: var(--bg-mint);
+    margin: 0;
+    padding: 0;
+    color: #1e293b;
+    /* 避免小朋友誤觸長按選取文字或彈出 iOS 放大鏡選單 */
+    -webkit-user-select: none;
+    user-select: none;
+    min-height: 100vh;
+}
+
+/* 滾動條美化 */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
+}
+
+/* 大尺寸觸控按鈕彈性動態效果 (適合 iPad 手指按壓反饋) */
+.btn-press {
+    transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.12s ease;
+    cursor: pointer;
+}
+.btn-press:active {
+    transform: scale(0.92);
+    filter: brightness(0.92);
+}
+
+/* 台灣國小課本標準右側直排注音樣式 */
+.zhuyin-word {
+    display: inline-flex;
+    align-items: center;
+    margin: 0 0.25rem;
+    line-height: 1;
+    vertical-align: middle;
+}
+.zhuyin-col {
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    line-height: 1.05;
+    margin-left: 0.15rem;
+    position: relative;
+    user-select: none;
+}
+.zhuyin-tone {
+    position: absolute;
+    right: -0.65rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.75rem;
+    font-weight: 900;
+}
+
+/* 音節馬卡龍彩標 */
+.syllable-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.35rem 0.85rem;
+    border-radius: 1rem;
+    font-weight: 900;
+    font-size: 1.5rem;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+    transition: all 0.15s ease;
+}
+.syllable-chip:hover, .syllable-chip:active {
+    transform: translateY(-2px) scale(1.05);
+}
+
+/* 幾種高辨識度柔和馬卡龍配色 */
+.chip-color-0 { background: #dbeafe; color: #1e40af; border: 2px solid #bfdbfe; }
+.chip-color-1 { background: #fef3c7; color: #92400e; border: 2px solid #fde68a; }
+.chip-color-2 { background: #f3e8ff; color: #6b21a8; border: 2px solid #e9d5ff; }
+.chip-color-3 { background: #fee2e2; color: #991b1b; border: 2px solid #fecaca; }
+.chip-color-4 { background: #e0e7ff; color: #3730a3; border: 2px solid #c7d2fe; }
+
+/* 字母發音高亮動畫 */
+.letter-highlight {
+    color: #ef4444 !important;
+    transform: scale(1.35) translateY(-6px);
+    text-shadow: 0 4px 10px rgba(239, 68, 68, 0.3);
+}
+.letter-span {
+    transition: all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    display: inline-block;
+}
+
+/* 字母積木插槽樣式 (Slot) */
+.tile-slot {
+    width: 3.5rem;
+    height: 4rem;
+    border: 3px dashed #cbd5e1;
+    border-radius: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: 900;
+    color: #334155;
+    background: #f8fafc;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    cursor: pointer;
+}
+@media (min-width: 640px) {
+    .tile-slot {
+        width: 4.25rem;
+        height: 4.75rem;
+        font-size: 2.25rem;
+    }
+}
+.tile-slot.filled {
+    border: 3px solid #3b82f6;
+    background: #ffffff;
+    box-shadow: 0 4px 10px rgba(59, 130, 246, 0.15);
+    color: #1d4ed8;
+}
+.tile-slot.slot-correct {
+    border-color: #22c55e;
+    background: #f0fdf4;
+    color: #15803d;
+}
+.tile-slot.slot-wrong {
+    border-color: #ef4444;
+    background: #fef2f2;
+    color: #b91c1c;
+}
+.tile-slot.slot-revealed {
+    border-color: #a855f7;
+    background: #faf5ff;
+    color: #7e22ce;
+}
+
+/* 字母積木按鈕 (Tile Button) */
+.letter-tile-btn {
+    width: 3.5rem;
+    height: 4rem;
+    border-radius: 1.25rem;
+    font-size: 2rem;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    transition: transform 0.12s, opacity 0.2s;
+}
+@media (min-width: 640px) {
+    .letter-tile-btn {
+        width: 4.25rem;
+        height: 4.75rem;
+        font-size: 2.25rem;
+    }
+}
+.letter-tile-btn:active {
+    transform: scale(0.9);
+}
+.letter-tile-btn.used {
+    opacity: 0.2;
+    pointer-events: none;
+    transform: scale(0.85);
+}
+
+/* 錯誤震動動畫 */
+@keyframes shakeAnimation {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-8px); }
+    40%, 80% { transform: translateX(8px); }
+}
+.shake {
+    animation: shakeAnimation 0.4s ease-in-out;
+}
+
+/* 怪獸吃字飛出動畫 */
+@keyframes monsterEat {
+    0% { transform: scale(1) rotate(0deg); opacity: 1; }
+    25% { transform: scale(1.15) rotate(-10deg); color: #ef4444; }
+    50% { transform: scale(1.15) rotate(10deg); }
+    100% { transform: scale(0) translate(0, -180px); opacity: 0; filter: blur(6px); }
+}
+.animate-eat {
+    animation: monsterEat 0.85s cubic-bezier(0.5, 0, 0.5, 1) forwards;
+    pointer-events: none;
+}
+
+/* 怪獸淨化成功愛心轉變動畫 */
+@keyframes monsterPurify {
+    0% { transform: scale(1); filter: brightness(1); }
+    40% { transform: scale(1.2) rotate(12deg); filter: brightness(1.5) drop-shadow(0 0 15px #f59e0b); }
+    100% { transform: scale(0); opacity: 0; }
+}
+.animate-purify {
+    animation: monsterPurify 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    pointer-events: none;
+}
+
+/* 彈跳進場動畫 */
+@keyframes popIn {
+    0% { transform: scale(0.85); opacity: 0; }
+    70% { transform: scale(1.04); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+}
+.pop-in {
+    animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* 浮動小蜜蜂 */
+@keyframes beeFloat {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-8px) rotate(4deg); }
+}
+.bee-float {
+    display: inline-block;
+    animation: beeFloat 2.5s ease-in-out infinite;
+}
+
+/* 小蜜蜂進度條跑者 */
+.bee-runner {
+    transition: left 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
