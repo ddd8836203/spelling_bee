@@ -1,633 +1,396 @@
-# 英文單字拼讀分塊邏輯規範（Phonics Chunking Logic Spec）
+# 英文單字自然拼讀分塊與發音工程規範（Phonics Chunking & Audio Spec）
 
-> 版本：v1.0  
-> 日期：2026-10-31  
-> 用途：供 AI 依據此規範，對英文單字進行教學用拼讀分塊，適用對象為台灣國小一～六年級學生。
-
----
-
-## 一、核心原則
-
-本規範的目標是讓孩子**用最少的記憶負擔，記住最多的單字**。
-分塊的切法必須滿足以下三個條件：
-
-1. **聲音可還原**：孩子把每個 chunk 的聲音拼起來，一定能還原正確發音。
-2. **模組可複用**：chunk 盡量選用在其他單字也出現的「高頻聲音單位」，讓記憶產生網絡效應。
-3. **意義可依附**：多音節字或合成字優先沿著「有意義的邊界」切，讓孩子同時學到字義邏輯。
+> **版本**：v2.0  
+> **更新日期**：2026-11-01  
+> **適用對象**：國小一～六年級學生英語拼讀教學、Spelling Bee 練習系統、跨平台 Web / iPad 網頁應用。  
+> **v2.0 升級摘要**：
+> 1. **新增「B軌 SSML 國際音標微音檔」架構**：徹底解決瀏覽器原生 TTS 遇縮寫（如 `ig` 唸 I-G、`os` 唸 O-S、`afe` 唸 A-I-F）亂唸字母名的死穴。
+> 2. **新增「音訊 DSP 裁切與音量正規化」標準**：規範 40ms 頭尾靜音裁切與 Peak Normalization，確保分塊連音拼讀時零延遲、不爆音。
+> 3. **新增「A軌 防縮寫雙子音 TTS 擬音字典」**：無音檔時自動 fallback 雙子音（`igg`, `oss`, `ayff`, `suh`）。
+> 4. **新增「響應式插槽（Slot）排版標準」**：規範單字長度自適應縮放，杜絕 6 字以上單字折行破版。
+> 5. **新增「新單字擴充標準作業程序（SOP）」**：提供可直接複製執行的 Python / PowerShell 自動生成腳本。
 
 ---
 
-## 二、分塊策略總覽
-
-| 策略名稱 | 適用場景 | 優先順序 |
-|----------|----------|----------|
-| **Onset + Rime（首音 + 韻基）** | 單音節字 | ① 最優先 |
-| **Compound（複合字拆詞）** | 由兩個獨立英文字組成的合成字 | ② |
-| **Morpheme（詞素拆分）** | 有明確前綴（prefix）或後綴（suffix）的字 | ③ |
-| **Syllable（音節拆分）** | 多音節字，無明顯詞素邊界 | ④ 最後手段 |
-
-> **決策優先順序**：Onset-Rime → Compound → Morpheme → Syllable  
-> 同一個字可能同時符合多個策略，依照優先順序取第一個能清楚表達的策略。
+## 目錄
+- [一、核心原則與三大驗證標準](#一核心原則與三大驗證標準)
+- [二、分塊切分四大策略](#二分塊切分四大策略)
+  - [策略 ①：Onset + Rime（首音 + 韻基）](#策略-onset--rime首音--韻基)
+  - [策略 ②：Compound（複合字拆詞）](#策略-compound複合字拆詞)
+  - [策略 ③：Morpheme（詞素拆分）](#策略-morpheme詞素拆分)
+  - [策略 ④：Syllable（音節拆分）](#策略-syllable音節拆分)
+- [三、特殊音素與自然發音邊界處理](#三特殊音素與自然發音邊界處理)
+- [四、前端資料庫 Schema 規範](#四前端資料庫-schema-規範)
+- [五、B軌：SSML 國際音標離線微音檔與 DSP 規格](#五b軌ssml-國際音標離線微音檔與-dsp-規格)
+- [六、A軌：防縮寫雙子音 TTS 擬音字典規則](#六a軌防縮寫雙子音-tts-擬音字典規則)
+- [七、「🔗 連音拼讀（Sound-It-Out Blending）」互動時序規範](#七-連音拼讀sound-it-out-blending互動時序規範)
+- [八、前端 UI 插槽自適應排版與色彩編碼規範](#八前端-ui-插槽自適應排版與色彩編碼規範)
+- [九、新增單字標準作業程序（New Word SOP）](#九新增單字標準作業程序new-word-sop)
+- [十、避坑指南（Trap & Solution 完整對照表）](#十避坑指南trap--solution-完整對照表)
 
 ---
 
-## 三、策略詳細規則
+## 一、核心原則與三大驗證標準
+
+本規範的目標是讓國小孩子**用最少的記憶負擔，聽音能拼、見字能讀**。分塊切割必須通過以下三個檢驗：
+
+1. **聲音可還原性（Acoustic Reconstructibility）**：孩子將每個分塊的聲音依序連讀（Blend），100% 能合成出該字的正確發音，不含多餘的輔音或母音殘留。
+2. **模組可複用性（Word-Family Reusability）**：分塊盡量選用高頻韻基（如 `-old`, `-ump`, `-ick`）或高頻前後綴，讓孩子學會一個分塊就能拼出一整族單字（網絡效應）。
+3. **意義可依附性（Semantic Anchoring）**：多音節字或複合字優先沿著「有意義的詞素邊界」切，讓孩子在記拼字的同時理解字義邏輯。
+
+---
+
+## 二、分塊切分四大策略
+
+分塊決策具有嚴格的優先順序：
+
+$$\text{Onset-Rime (單音節)} \longrightarrow \text{Compound (複合字)} \longrightarrow \text{Morpheme (詞素)} \longrightarrow \text{Syllable (音節)}$$
+
+```
+          [收到單字]
+              │
+    ┌─────────┴─────────┐
+    ▼                   ▼
+單音節字？          多音節字？
+    │                   │
+    ▼                   ├─► 是複合字？ ──► 策略 ② Compound
+策略 ① Onset-Rime       │
+                        ├─► 有前後綴？ ──► 策略 ③ Morpheme
+                        │
+                        └─► 無詞素結構 ──► 策略 ④ Syllable
+```
 
 ---
 
 ### 策略 ①：Onset + Rime（首音 + 韻基）
 
 #### 適用條件
-- 整個單字只有 **1 個音節**（即音標中只有 1 個母音核心）。
-- 不是複合字也沒有前後綴（否則先走策略 ②③）。
+- 單字只有 **1 個音節**（音標中只有 1 個母音核心）。
+- 無複合字或前後綴結構。
 
 #### 定義
-- **Onset（首音）**：音節中，母音之前的所有輔音（可以是 0 個、1 個、或輔音叢）。
-- **Rime（韻基）**：母音本身加上母音之後的所有輔音（這是記憶的核心單位）。
+- **Onset（首音）**：母音之前的所有輔音（可以是 0 個、單子音、或輔音叢）。
+- **Rime（韻基）**：母音核心加上其後的所有輔音（記憶的核心單元）。
 
-#### 切法規則
-
-**規則 1：有 Onset 的字，切成「首音 | 韻基」兩塊。**
-
-```
-jump  → [j] + [ump]      /dʒ/ + /ʌmp/
-cold  → [c] + [old]      /k/  + /oʊld/
-cat   → [c] + [at]       /k/  + /æt/
-child → [ch] + [ild]     /tʃ/ + /ɪld/
-bay   → [b] + [ay]       /b/  + /eɪ/
-cow   → [c] + [ow]       /k/  + /aʊ/
-care  → [c] + [are]      /k/  + /er/
-dove  → [d] + [ove]      /d/  + /ʌv/   ← magic-e，e 不發音但屬於 rime
-```
-
-**規則 2：以母音開頭的字（Onset 為空），整顆視為 rime，但可切為「首母音 | 尾輔音叢」。**
-
-```
-act   → [a] + [ct]       /æ/  + /kt/
-add   → [a] + [dd]       /æ/  + /d/
-ape   → [a] + [pe]       /eɪ/ + /p/    ← magic-e，pe 是 rime 尾
-air   → [air]            /er/           ← 整顆是 r 控制母音組合，不再拆
-```
-
-> ⚠️ **air 不拆的理由**：`air` 是 r-controlled vowel team，整個三字母是一個母音音素 `/er/`，硬拆 `a + ir` 無法還原正確發音。凡是 r-controlled 組合（ar, er, ir, or, ur, air, ear, oor 等）一律視為**不可拆的單一韻基**。
-
-**規則 3：Onset 是二合字母（Digraph）或輔音叢（Cluster）時，整個 Onset 視為一塊。**
-
-```
-child → [ch] + [ild]     ch 是 digraph，整體發 /tʃ/
-ship  → [sh] + [ip]      sh 是 digraph，整體發 /ʃ/
-block → [bl] + [ock]     bl 是 cluster，整體發 /bl/
-strong → [str] + [ong]   str 是三輔音 cluster
-```
-
-**規則 4：Rime 中的 magic-e（CVCe 結構），e 屬於 rime 但標記為靜音。**
-
-```
-ape  → [a] + [pe]        rime = pe，e 讓 a 發長音 /eɪ/
-dove → [d] + [ove]       rime = ove，e 讓 o 發 /ʌ/（例外，不是典型長音）
-cake → [c] + [ake]       rime = ake，e 讓 a 發長音 /eɪ/
-```
+#### 切分標準
+1. **常規字**：切為 `[Onset] + [Rime]` 兩塊。
+   * `cat` $\rightarrow$ `[c]` (/k/) + `[at]` (/æt/)
+   * `cold` $\rightarrow$ `[c]` (/k/) + `[old]` (/oʊld/)
+   * `jump` $\rightarrow$ `[j]` (/dʒ/) + `[ump]` (/ʌmp/)
+   * `child` $\rightarrow$ `[ch]` (/tʃ/) + `[ild]` (/aɪld/)
+2. **母音開頭字（Onset 為空）**：切為 `[首母音] + [尾輔音叢]`。
+   * `act` $\rightarrow$ `[a]` (/æ/) + `[ct]` (/kt/)
+   * `add` $\rightarrow$ `[a]` (/æ/) + `[dd]` (/d/)
+   * `ox`  $\rightarrow$ `[o]` (/ɑ/) + `[x]` (/ks/)
+   * `up`  $\rightarrow$ `[u]` (/ʌ/) + `[p]` (/p/)
+3. **二合字母（Digraph）與輔音叢（Cluster）不可拆**：
+   * `ship` $\rightarrow$ `[sh]` + `[ip]`（二合輔音 `sh` 一體）
+   * `black` $\rightarrow$ `[bl]` + `[ack]`（輔音叢 `bl` 一體）
+   * `strong` $\rightarrow$ `[str]` + `[ong]`（三輔音叢 `str` 一體）
+4. **Magic-E（CVCe 結構）**：字尾不發音的 `e` 歸入 Rime，使前方母音發長音。
+   * `cake` $\rightarrow$ `[c]` + `[ake]` (/eɪk/)
+   * `safe` $\rightarrow$ `[s]` + `[afe]` (/eɪf/)
+   * `rope` $\rightarrow$ `[r]` + `[ope]` (/oʊp/)
 
 ---
 
 ### 策略 ②：Compound（複合字拆詞）
 
 #### 適用條件
-- 單字是由**兩個或以上可獨立成詞的英文字**直接拼合而成。
-- 拆開後每一塊本身都是一個有意義的英文單字。
+- 單字由**兩個或多個可獨立成詞的英文單字**拼合而成。
+- 拆開後每個單元在字典中都有獨立含義。
 
-#### 切法規則
-
-沿著原始獨立字的邊界切，不跨字切割：
-
-```
-greenhouse  → [green] + [house]
-carefree    → [care]  + [free]
-applesauce  → [apple] + [sauce]
-sunflower   → [sun]   + [flower]
-rainbow     → [rain]  + [bow]
-football    → [foot]  + [ball]
-mailbox     → [mail]  + [box]
-```
-
-> **記憶錨點說明**：複合字的錨點是「兩個獨立詞的組合語義」。  
-> 例：`greenhouse` = green（綠色）+ house（房子）→「綠色的房子，用來種植物」，語義直接推導拼字。
+#### 切分標準
+沿原始字詞邊界切割，絕不跨字分割：
+* `greenhouse` $\rightarrow$ `[green]` + `[house]`（綠色的房子 $\rightarrow$ 溫室）
+* `rainbow`    $\rightarrow$ `[rain]` + `[bow]`（下雨出現的弓 $\rightarrow$ 彩虹）
+* `football`   $\rightarrow$ `[foot]` + `[ball]`
+* `mailbox`    $\rightarrow$ `[mail]` + `[box]`
+* `watermelon` $\rightarrow$ `[water]` + `[melon]`
 
 ---
 
 ### 策略 ③：Morpheme（詞素拆分）
 
 #### 適用條件
-- 單字有明確可識別的**前綴（prefix）**或**後綴（suffix）**，且這些詞素在其他單字中也常出現。
-- 去掉前綴或後綴之後，剩下的部分（字根）本身有獨立意義或至少是可識別的發音單位。
+- 單字帶有明確的前綴（Prefix）或後綴（Suffix）。
+- 移除詞素後，字根（Root）可獨立成詞或為辨識性高的語義單位。
 
-#### 常見前綴對照表
+#### 常見前後綴清單
+* **前綴（Prefix）**：`un-`（否定）、`re-`（再次）、`mis-`（錯誤）、`pre-`（事前）、`dis-`（相反）、`sub-`（底下）。
+* **後綴（Suffix）**：`-ful`（充滿）、`-less`（缺乏）、`-ness`（性質）、`-ment`（結果）、`-dom`（領域）、`-ly`（副詞）、`-able`（能夠）、`-er/-or`（人/物）。
 
-| 前綴 | 語義 | 範例 |
-|------|------|------|
-| `un-` | 否定、反轉 | unhappy, undo, untie |
-| `mis-` | 錯誤地 | mistreat, mistake, misread |
-| `re-` | 再次 | rewrite, redo, retell |
-| `pre-` | 之前 | preview, preheat |
-| `dis-` | 否定 | dislike, disagree |
-| `over-` | 超過 | overeat, overlook |
-| `sub-` | 在下 | subway, submarine |
-| `inter-` | 之間 | interact, internet |
-| `ab-` | 離開、偏離 | absent, abstract, absolute |
-| `ex-` | 出、前任 | export, exit, explain |
-
-#### 常見後綴對照表
-
-| 後綴 | 語義 | 範例 |
-|------|------|------|
-| `-dom` | 領域、狀態 | kingdom, freedom, wisdom |
-| `-ful` | 充滿 | careful, hopeful, harmful |
-| `-less` | 缺乏 | careless, hopeless, homeless |
-| `-ness` | 狀態、性質 | darkness, kindness, sadness |
-| `-ment` | 行為結果 | movement, payment, treatment |
-| `-tion/-sion` | 行為結果（名詞化） | action, nation, permission |
-| `-ly` | 副詞化 | slowly, quickly, carefully |
-| `-er/-or` | 人、物、比較級 | teacher, actor, bigger |
-| `-able/-ible` | 可以…的 | readable, possible |
-| `-ate` | 動詞化 | operate, create, educate |
-| `-ize/-ise` | 動詞化 | realize, organize |
-| `-al` | 形容詞化 | royal, natural, musical |
-
-#### 切法規則
-
-**規則 1：前綴 + 字根。**
-
-```
-mistreat  → [mis] + [treat]
-misread   → [mis] + [read]
-unhappy   → [un]  + [happy]
-retell    → [re]  + [tell]
-```
-
-**規則 2：字根 + 後綴。**
-
-```
-kingdom   → [king]  + [dom]
-freedom   → [free]  + [dom]
-careful   → [care]  + [ful]
-treatment → [treat] + [ment]
-```
-
-**規則 3：前綴 + 字根 + 後綴（三段式）。**
-
-```
-unkindness → [un] + [kind] + [ness]
-disagreement → [dis] + [agree] + [ment]
-```
-
-**規則 4：`operate` 類：字根不是獨立英文字，但後綴仍切出。**
-
-```
-operate → [oper] + [ate]      oper 非獨立字，但 -ate 是動詞後綴
-absolute → [ab] + [so] + [lute]  ← ab- 是前綴，但 solute 已沒有更小的有意義拆法，
-                                     此時改走音節策略處理剩餘部分
-```
-
-> ⚠️ **何時停止拆詞素、改走音節**：  
-> 若去掉前後綴後，剩下的字根本身無法給孩子建立有意義的記憶點（如 `-solute` 對小學生無意義），則字根部分改用音節策略繼續拆。
+#### 切分標準
+* 前綴 + 字根：`unhappy` $\rightarrow$ `[un]` + `[happy]`；`mistake` $\rightarrow$ `[mis]` + `[take]`
+* 字根 + 後綴：`kingdom` $\rightarrow$ `[king]` + `[dom]`；`careful` $\rightarrow$ `[care]` + `[ful]`
+* 複合詞素：`unkindness` $\rightarrow$ `[un]` + `[kind]` + `[ness]`
 
 ---
 
 ### 策略 ④：Syllable（音節拆分）
 
 #### 適用條件
-- 多音節字，且無法識別複合字結構或有效的詞素邊界。
-- 或詞素拆分後字根部分仍需進一步拆解。
+- 多音節字，且無明顯複合字或常見前後綴結構。
 
-#### 音節切分的六大規則（英文音節劃分標準規則）
-
-**規則 VCV：兩母音中間夾一個輔音 → 輔音歸後面那個音節。**
-```
-noble  → [no] + [ble]       n-o | b-l-e
-color  → [co] + [lor]
-open   → [o]  + [pen]
-```
-
-**規則 VCCV：兩母音中間夾兩個輔音 → 從中間切。**
-```
-magnet  → [mag] + [net]
-proper  → [prop] + [er]
-butter  → [but]  + [ter]
-```
-
-**規則 VCCCV：三個輔音連在一起 → 先判斷哪些輔音可以組成合法 onset，保留合法 onset 給後面。**
-```
-monster → [mon] + [ster]    st 可作 onset，所以歸後面
-```
-
-**規則 有後綴 -ble / -ple / -tle / -dle / -gle / -fle（子音 + le 結尾）：視為獨立末音節。**
-```
-noble   → [no]  + [ble]
-apple   → [ap]  + [ple]
-little  → [lit] + [tle]
-```
-
-**規則 R-controlled 母音不跨音節切：ar, er, ir, or, ur 視為同一個母音，不從中間切。**
-```
-fortune → [for] + [tune]    for 整塊是 r-controlled，不拆成 fo + r
-proper  → [prop] + [er]     er 整塊是 r-controlled
-```
-
-**規則 Double Consonant（重複輔音）：中間切一個，兩邊各一個。**
-```
-bunny   → [bun] + [ny]      nn → 一個歸前、一個歸後
-butter  → [but] + [ter]
-```
+#### 音節劃分六大定律
+1. **VCV 定律**（母-子-母）：輔音歸後音節。
+   * `open` $\rightarrow$ `[o]` + `[pen]`
+   * `color` $\rightarrow$ `[co]` + `[lor]`
+2. **VCCV 定律**（母-子-子-母）：從兩輔音中間切開。
+   * `magnet` $\rightarrow$ `[mag]` + `[net]`
+   * `rabbit` $\rightarrow$ `[rab]` + `[bit]`
+   * `butter` $\rightarrow$ `[but]` + `[ter]`（雙寫輔音各自歸一邊）
+3. **VCCCV 定律**（母-三子-母）：保留合法 Onset 給後音節。
+   * `monster` $\rightarrow$ `[mon]` + `[ster]`（`st` 為合法首音）
+4. **子音 + le（Consonant-le）**：字尾 `-ble`, `-cle`, `-dle`, `-ple`, `-tle` 獨立成末音節。
+   * `candle` $\rightarrow$ `[can]` + `[dle]`
+   * `rattle` $\rightarrow$ `[rat]` + `[tle]`
+   * `vegetables` $\rightarrow$ `[veg]` + `[ta]` + `[ble]`
+5. **R-controlled 組合不可跨音節切**：`ar`, `er`, `ir`, `or`, `ur` 一體化。
+   * `fortune` $\rightarrow$ `[for]` + `[tune]`
+   * `garden`  $\rightarrow$ `[gar]` + `[den]`
 
 ---
 
-## 四、特殊情況處理
+## 三、特殊音素與自然發音邊界處理
 
-### 4-1 靜音字母（Silent Letters）
-
-靜音字母跟著它所屬的母音或字根走，不單獨成塊，但需在 `memoryNote` 中標記。
-
-```
-calf    → [c] + [alf]       l 不發音，標記：「l 是靜音」
-knife   → [kn] + [ife]      k 不發音，標記：「k 是靜音」
-gnome   → [gn] + [ome]      g 不發音
-```
-
-### 4-2 R-controlled 母音
-
-以下組合永遠視為**不可拆的單一音素單位**：
-
-| 組合 | 發音 | 範例 |
-|------|------|------|
-| `ar` | /ɑːr/ | barn, car, star |
-| `er` | /ɜːr/ | her, proper |
-| `ir` | /ɜːr/ | bird, girl |
-| `or` | /ɔːr/ | for, corn, color |
-| `ur` | /ɜːr/ | fur, turn |
-| `air` | /er/  | air, pair, fair |
-| `ear` | /ɪr/  | ear, hear, clear |
-| `oor` | /ʊr/  | floor（注意 floor 另有讀法） |
-
-### 4-3 Vowel Teams（雙字母母音）
-
-以下組合永遠視為**不可拆的單一母音單位**：
-
-| 組合 | 發音 | 範例 |
-|------|------|------|
-| `ai` | /eɪ/ | rain, tail |
-| `ay` | /eɪ/ | day, bay, play |
-| `ea` | /iː/ or /ɛ/ | eat, bread |
-| `ee` | /iː/ | see, tree |
-| `ie` | /iː/ or /aɪ/ | cookie, pie |
-| `oa` | /oʊ/ | boat, coat |
-| `oe` | /oʊ/ | toe, foe |
-| `oo` | /uː/ or /ʊ/ | moon, book |
-| `ou` | /aʊ/ or /oʊ/ | out, soup |
-| `ow` | /aʊ/ or /oʊ/ | cow, snow |
-| `oy` | /ɔɪ/ | boy, royal |
-| `oi` | /ɔɪ/ | oil, coin |
-| `au` | /ɔː/ | sauce, caught |
-| `aw` | /ɔː/ | saw, jaw |
-| `ew` | /juː/ or /uː/ | new, few |
-| `ue` | /uː/ or /juː/ | blue, due |
-| `ui` | /uː/ | fruit, suit |
-
-### 4-4 Digraph（二合字母輔音）
-
-以下輔音組合永遠不從中間拆：
-
-| 組合 | 發音 | 範例 |
-|------|------|------|
-| `ch` | /tʃ/ | child, chair |
-| `sh` | /ʃ/ | ship, shell |
-| `th` | /θ/ or /ð/ | thin, this |
-| `wh` | /w/ or /hw/ | when, white |
-| `ph` | /f/ | phone, photo |
-| `ck` | /k/ | duck, clock |
-| `ng` | /ŋ/ | ring, sing |
-| `qu` | /kw/ | queen, quick |
-| `gh` | /f/ or silent | laugh, night |
-
-### 4-5 Magic-E（CVCe 結構）
-
-magic-e 的規則：字尾的 `e` 靜音，且讓前面的母音發**長音**（字母音）。
-e 跟 rime 綁在一起，不單獨成塊。
-
-```
-cake  → [c] + [ake]     a 發長音 /eɪ/
-vine  → [v] + [ine]     i 發長音 /aɪ/
-rope  → [r] + [ope]     o 發長音 /oʊ/
-tube  → [t] + [ube]     u 發長音 /juː/
-```
-
-例外：有些 CVCe 字母音不是典型長音（歷史遺留）：
-```
-dove  → /dʌv/    o 沒有發長音，屬於例外，需在 memoryNote 標記
-love  → /lʌv/    同上
-```
-
-### 4-6 兩音節字的 Onset-Rime 遞歸
-
-若一個兩音節字的每個音節都很短，可對每個音節各自套用 Onset-Rime：
-
-```
-bunny  → 音節1: [b] + [un]  |  音節2: [n] + [y]
-candy  → 音節1: [c] + [an]  |  音節2: [d] + [y]
-city   → 音節1: [c] + [it]  |  音節2: [y]
-color  → 音節1: [c] + [ol]  |  音節2: [or]（r-controlled，整顆保留）
-cookie → 音節1: [c] + [ook] |  音節2: [ie]（vowel team，整顆保留）
-```
+| 分類 | 字母組合 | 音標 | 處理規則 | 範例 |
+| :--- | :--- | :--- | :--- | :--- |
+| **R 控制母音** | `ar`, `er`, `ir`, `or`, `ur`, `air`, `ear` | `/ɑːr/`, `/ɜːr/`, `/ɔːr/`, `/er/`, `/ɪr/` | 永遠視為不可拆分的單一母音音素 | `car` (`[c]+[ar]`), `girl` (`[g]+[irl]`), `air` (`[air]`) |
+| **雙字母母音** | `ai`, `ay`, `ee`, `ea`, `oa`, `oo`, `oi`, `oy`, `ou`, `ow` | `/eɪ/`, `/iː/`, `/oʊ/`, `/uː/`, `/ɔɪ/`, `/aʊ/` | 母音隊伍（Vowel Team）不可從中拆開 | `rain` (`[r]+[ain]`), `moon` (`[m]+[oon]`), `meat` (`[m]+[eat]`) |
+| **二合輔音** | `ch`, `sh`, `th`, `wh`, `ph`, `ck`, `ng`, `qu` | `/tʃ/`, `/ʃ/`, `/θ/`, `/w/`, `/f/`, `/k/`, `/ŋ/`, `/kw/` | 代表單一輔音音位，嚴禁拆成單字母 | `chick` (`[ch]+[ick]`), `queen` (`[qu]+[een]`), `ring` (`[r]+[ing]`) |
+| **靜音字母** | `kn-`, `wr-`, `gn-`, `-mb`, `-lf`, `-lk` | `/n/`, `/r/`, `/n/`, `/m/`, `/f/`, `/k/` | 靜音字母跟隨所屬模塊，在筆記（`uiNote`）中向學生解釋 | `calf` (`[c]+[alf]`, 註明 l 靜音), `thumb` (`[th]+[umb]`, 註明 b 靜音) |
 
 ---
 
-## 五、資料欄位規範
+## 四、前端資料庫 Schema 規範
 
-每個單字在 app 資料中以以下欄位描述：
+在 `data/chunks_data.js` 中，每個單字以結構化 JSON 描述：
 
-```json
-{
-  "word": "jump",
+```javascript
+"safe": {
+  "word": "safe",
   "chunkType": "onset-rime",
+  "ipa": "/seɪf/",
   "chunks": [
     {
-      "text": "j",
-      "sound": "dʒ",
+      "text": "s",
+      "ipa": "/s/",
       "role": "onset",
-      "memoryNote": ""
+      "roleTag": "onset",       // onset | rime | coda | compound | prefix | suffix | root | syllable
+      "speakAs": "s",
+      "speakMode": "phonetic"   // v2.0 統一為 phonetic 或 direct，廢除 wholeWord
     },
     {
-      "text": "ump",
-      "sound": "ʌmp",
-      "role": "rime",
-      "memoryNote": "ump word family：bump, dump, lump, pump, hump"
+      "text": "afe",
+      "ipa": "/eɪf/",
+      "role": "rime（magic-e，a 發長音）",
+      "roleTag": "rime",
+      "speakAs": "safe",
+      "speakMode": "phonetic"
     }
   ],
-  "memoryAnchor": {
-    "type": "word-family",
-    "anchor": "ump",
-    "siblings": ["bump", "dump", "lump", "pump", "hump", "grump"],
-    "anchorNote": "只要換掉開頭字母，整個 ump 家族都會拼了。讓孩子先記住 ump 這個聲音塊，然後練習換首音：b→bump、d→dump、gr→grump。"
-  }
+  "memoryAnchorType": "magic-e", // word-family | magic-e | r-controlled | vowel-team | digraph | compound | prefix | suffix | exception
+  "anchor": "-afe",
+  "siblings": ["chafe", "cave", "wave", "save"],
+  "uiNote": "s 發 /s/，afe 是 magic-e，e 靜音讓 a 發長音 /eɪ/。",
+  "specialNote": "magic-e：字尾 e 靜音，使 a 發長音 /eɪ/"
 }
 ```
 
 ---
 
-## 六、`memoryAnchor`（記憶錨點）欄位詳細規範
+## 五、B軌：SSML 國際音標離線微音檔與 DSP 規格
 
-這是整份規範中最重要的欄位，目的是**明確告訴老師和孩子，要把這個字「掛」在哪個已知的記憶上**。
+### 5-1 為什麼原生 TTS 必敗？
+瀏覽器原生 `window.speechSynthesis` 對於拼讀模塊有天然盲區：
+* 縮寫誤判：`ig` 唸成 **I-G**、`os` 唸成 **O-S**、`afe` 唸成 **A-I-F**、`ip` 唸成 **I-P**、`et` 唸成 **E-T**。
+* 擬音字連讀重複：`s` 擬音設為 `'sss'` 時被唸成 **S-S-S**。
+* 音標不支援：丟 IPA 給瀏覽器 TTS 會報錯或靜音。
 
-### 6-1 `type` 欄位的所有合法值
+### 5-2 離線微音檔規格（B 軌標準）
+為徹底解決以上問題，所有分塊透過本機 Windows `.NET System.Speech` 離線批次合成：
+* **語音引擎**：`Microsoft Zira Desktop`（en-US 女聲）。
+* **音訊格式**：16,000 Hz / 16-bit / Mono WAV。
+* **SSML 格式規範（關鍵限制）**：
+  ```xml
+  <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
+    <prosody rate='-10%'>
+      <phoneme alphabet='ipa' ph='{clean_ipa}'>{clean_text}</phoneme>
+    </prosody>
+  </speak>
+  ```
+  > ⚠️ **死穴警報**：`ph` 屬性字串中**絕對不能有空格**（例如 `/eɪf/` 必須傳 `ph="eɪf"`，傳 `"eɪ f"` 會直接觸發 FormatException 拋錯崩潰）。
 
-| type 值 | 說明 | 適用策略 |
-|---------|------|----------|
-| `word-family` | 這個 rime 有大量同韻家族字 | Onset-Rime |
-| `silent-letter` | 有靜音字母需要特別記憶 | Onset-Rime / Syllable |
-| `magic-e` | CVCe 結構，e 讓母音變長音 | Onset-Rime |
-| `r-controlled` | r 控制母音，發音特殊 | Onset-Rime / Syllable |
-| `vowel-team` | 雙字母母音，需整體記憶 | Onset-Rime / Syllable |
-| `digraph` | 二合輔音字母，整體一個音 | Onset-Rime |
-| `compound` | 兩個獨立字拼成的合成字 | Compound |
-| `prefix` | 有前綴，帶有固定語義 | Morpheme |
-| `suffix` | 有後綴，帶有固定語義 | Morpheme |
-| `prefix+suffix` | 同時有前後綴 | Morpheme |
-| `syllable-pattern` | 靠音節規律記憶，無特別錨點 | Syllable |
-| `exception` | 不規則發音，需死記 | 所有 |
-
-### 6-2 `anchorNote` 的撰寫標準
-
-`anchorNote` 必須包含以下三個部分（依序填寫，缺一不可）：
-
-1. **這個錨點的語義或語音邏輯是什麼**：告訴孩子「為什麼這樣切」。
-2. **這個錨點能延伸到哪些其他單字**：給出 3～6 個「同錨點」的兄弟字。
-3. **記憶建議/口訣**：用孩子能理解的語言，給一個簡短的記憶策略。
-
-#### 範例 1：Onset-Rime，word-family 類型
-
-```json
-"memoryAnchor": {
-  "type": "word-family",
-  "anchor": "old",
-  "siblings": ["bold", "fold", "gold", "hold", "mold", "sold", "told"],
-  "anchorNote": "
-    1. 邏輯：-old 是一個超高頻韻基，凡是有這個 rime 的字，母音都發 /oʊld/。
-    2. 兄弟字：bold（大膽的）、fold（折疊）、gold（金子）、hold（抓住）、sold（賣掉了）。
-    3. 記憶策略：先記住 OLD（老的）這個字，然後想像換帽子：c+old 就是冷、g+old 就是金子。
-  "
-}
-```
-
-#### 範例 2：Magic-E 類型
-
-```json
-"memoryAnchor": {
-  "type": "magic-e",
-  "anchor": "ape",
-  "siblings": ["cape", "tape", "grape", "shape"],
-  "anchorNote": "
-    1. 邏輯：magic-e 規則 — 字尾的 e 不發音，但它的魔法讓前面的 a 從短音 /æ/ 變成長音 /eɪ/（就是字母 A 的名字）。
-    2. 兄弟字：cape（披風）、tape（膠帶）、grape（葡萄）、shape（形狀）。
-    3. 記憶策略：把字尾的 e 想成一個「沉默的魔法師」，它自己不出聲，但讓旁邊的母音大聲唸自己的名字。
-  "
-}
-```
-
-#### 範例 3：Compound 類型
-
-```json
-"memoryAnchor": {
-  "type": "compound",
-  "anchor": "green + house",
-  "siblings": ["treehouse", "doghouse", "playhouse"],
-  "anchorNote": "
-    1. 邏輯：greenhouse = green（綠色）+ house（房子），是用玻璃蓋的、讓植物冬天住的溫室。
-       拼字完全等於兩個已知單字相加，不需要背任何新的拼音規則。
-    2. 兄弟字：treehouse（樹屋）= tree + house、doghouse（狗屋）= dog + house。
-    3. 記憶策略：看到這個字，腦海先找「裡面藏了哪兩個字」，找到了，拼字自然對了。
-  "
-}
-```
-
-#### 範例 4：Prefix 類型
-
-```json
-"memoryAnchor": {
-  "type": "prefix",
-  "anchor": "mis-",
-  "siblings": ["mistake", "misread", "mislead", "misplace", "misunderstand"],
-  "anchorNote": "
-    1. 邏輯：mis- 是一個前綴，語義是「錯誤地、不好地」。mistreat = mis + treat，
-       treat 是對待/款待，mis+treat 就是「錯誤地對待某人 → 虐待」。
-    2. 兄弟字：mistake（做錯）、misread（讀錯）、mislead（誤導）、misplace（放錯地方）。
-    3. 記憶策略：看到 mis- 開頭，先問自己「後面這個字是什麼意思？」再加上「做錯了」就是整個字的意思。
-       這樣背一個前綴，等於同時學會了一整族的字。
-  "
-}
-```
-
-#### 範例 5：Exception（不規則），需死記
-
-```json
-"memoryAnchor": {
-  "type": "exception",
-  "anchor": "seize",
-  "siblings": ["either", "neither", "weird"],
-  "anchorNote": "
-    1. 邏輯：seize 的 ei 違反了 'i before e except after c' 這個常見規則，屬於例外字。
-       ei 在這裡發 /iː/，跟 ee 一樣的音。
-    2. 兄弟字：either、neither、weird — 這些都是 ei 發 /iː/ 的例外字族。
-    3. 記憶策略：用句子鎖定拼字「She seized the weird creature.」
-       把幾個例外字串成一句話一起背，效果比單字死記好。
-  "
-}
-```
-
-#### 範例 6：Suffix 類型（後綴）
-
-```json
-"memoryAnchor": {
-  "type": "suffix",
-  "anchor": "-dom",
-  "siblings": ["freedom", "wisdom", "boredom", "kingdom"],
-  "anchorNote": "
-    1. 邏輯：-dom 是後綴，語義是「某種狀態/領域/範疇」。
-       kingdom = king（國王）+ dom（領域）→「國王的領域 → 王國」。
-    2. 兄弟字：freedom（自由的狀態）、wisdom（智慧的狀態）、boredom（無聊的狀態）。
-    3. 記憶策略：看到 -dom 結尾，先認出前面的字根，再加上「某種狀態」的意思就能推出整字含義。
-       知道 king，就知道 kingdom；知道 free，就知道 freedom。後綴是免費送的知識。
-  "
-}
-```
-
-#### 範例 7：R-controlled 母音
-
-```json
-"memoryAnchor": {
-  "type": "r-controlled",
-  "anchor": "ar",
-  "siblings": ["car", "star", "barn", "farm", "park"],
-  "anchorNote": "
-    1. 邏輯：字母 r 會「控制」前面的母音，讓它不發原本的短音或長音，
-       而是發一個喉嚨往後縮的 r 音。ar 整組固定發 /ɑːr/（類似台灣口音的「啊兒」）。
-    2. 兄弟字：car（車）、star（星星）、barn（穀倉）、farm（農場）、park（公園）。
-    3. 記憶策略：ar 整組是一個不可分割的聲音磚塊，看到 ar 就直接唸 /ɑːr/，
-       不要分開唸 /æ/ + /r/，分開唸一定會唸錯。
-  "
-}
-```
+### 5-3 DSP 音訊處理標準（Python scipy + numpy）
+每個生成的 WAV 檔案必須通過自動化 DSP 處理，確保分塊連音時零延遲、不爆音：
+1. **能量閥值靜音裁切（Silence Trimming）**：
+   $$\text{threshold} = \max\left(120.0, \; \max(|x|) \times 0.02\right)$$
+   切除頭尾環境底噪與 TTS 預設空白。
+2. **40ms 保護邊界（Padding）**：
+   頭尾嚴格保留 40ms（640 samples @ 16kHz）淡入淡出空間，避免裁切邊緣產生 Click 爆音。
+3. **峰值正規化（Peak Normalization）**：
+   * **純氣音 / 爆破音 / 尾音叢**（如 `p`, `ct`, `s`, `x`, `t`, `k`）：標準化至 **24,000**（防止短促子音過度微弱）。
+   * **母音 / 韻基 / 雙音節**（如 `afe`, `ig`, `os`, `arn`, `ook`）：標準化至 **27,000**。
+4. **檔案大小控制**：單一微音檔約 5 KB ~ 20 KB，全套 286 個音檔總和約 3.7 MB，載入毫秒秒開。
 
 ---
 
-## 七、完整範例表
+## 六、A軌：防縮寫雙子音 TTS 擬音字典規則
 
-### 7-1 國小低年級字彙
+當微音檔在離線或例外環境無法載入時，前端引擎自動降級至 A 軌。A 軌必須遵守**「雙子音閉音節防縮寫拼寫鐵律」**：
 
-| 單字 | chunkType | chunks | memoryAnchor.type | anchor | anchorNote 摘要 |
-|------|-----------|--------|------------------|--------|----------------|
-| act | onset-rime | [a] + [ct] | word-family | act | act, fact, pact, tract — 短母音 a + ct 結尾 |
-| add | onset-rime | [a] + [dd] | syllable-pattern | — | 母音開頭，dd 是雙輔音尾，整字只有一個 d 的聲音 |
-| air | onset-rime | [air] | r-controlled | air | 整組 air=/er/，兄弟：fair, pair, chair, stair |
-| any | syllable | [an] + [y] | exception | — | any 的 a 發短音 /ɛ/（接近 e），是例外；y 結尾發 /i/ |
-| ape | onset-rime | [a] + [pe] | magic-e | ape | 兄弟：cape, tape, grape, shape |
-| away | syllable + onset-rime | [a] + [w]+[ay] | vowel-team | ay | ay 固定發 /eɪ/，兄弟：day, bay, play, stay |
-| barn | onset-rime | [b] + [arn] | r-controlled | arn | arn=/ɑːrn/，兄弟：yarn, darn, farm（ar 控母音）|
-| bay | onset-rime | [b] + [ay] | word-family | ay | 兄弟：day, say, may, play, stay, clay |
-| bunny | syllable | [b]+[un] + [n]+[y] | word-family | un | un 韻基：bun, fun, run, sun, gun |
-| cab | onset-rime | [c] + [ab] | word-family | ab | 兄弟：tab, dab, grab, jab, lab |
-| calf | onset-rime | [c] + [alf] | silent-letter | l | l 不發音，整字發 /kæf/，需特別標記靜音 l |
-| candy | syllable | [c]+[an] + [d]+[y] | word-family | an | an 韻基：can, man, fan, pan, ran |
-| care | onset-rime | [c] + [are] | r-controlled | are | are=/er/，兄弟：bare, dare, fare, share, stare |
-| child | onset-rime | [ch] + [ild] | digraph | ch | ch=/tʃ/，ild 韻基：wild, mild, build |
-| city | syllable | [c]+[it] + [y] | exception | soft-c | c 在 i 前發軟音 /s/，兄弟：circle, cent, ceiling |
-| cold | onset-rime | [c] + [old] | word-family | old | 兄弟：bold, fold, gold, hold, mold, sold, told |
-| color | syllable | [c]+[ol] + [or] | r-controlled | or | or=/ɔːr/，兄弟：for, corn, born, torn |
-| cookie | syllable | [c]+[ook] + [ie] | vowel-team | oo+ie | oo=/ʊ/（短 oo），ie 結尾=/i/，兄弟：book, cook, look |
-| cow | onset-rime | [c] + [ow] | vowel-team | ow | ow 有兩音：/aʊ/（cow）或 /oʊ/（snow），需標哪個 |
-| cub | onset-rime | [c] + [ub] | word-family | ub | 兄弟：hub, rub, sub, tub, club, grub |
-| day | onset-rime | [d] + [ay] | word-family | ay | 兄弟：bay, may, pay, say, way, play, stay |
-| dot | onset-rime | [d] + [ot] | word-family | ot | 兄弟：hot, lot, not, pot, rot, shot |
-| dove | onset-rime | [d] + [ove] | exception | magic-e失效 | ove 應長音但發 /ʌv/，屬例外，兄弟：love, above |
-
-### 7-2 國小六年級字彙
-
-| 單字 | chunkType | chunks | memoryAnchor.type | anchor | anchorNote 摘要 |
-|------|-----------|--------|------------------|--------|----------------|
-| absolute | morpheme+syllable | [ab] + [so] + [lute] | prefix | ab- | ab- 表「偏離」，absolute = 完全偏離任何限制 → 絕對的 |
-| applesauce | compound | [apple] + [sauce] | compound | apple+sauce | 蘋果泥醬，兩個已知字直接相加 |
-| carefree | compound | [care] + [free] | compound | care+free | care（擔心）+ free（自由）= 無憂無慮 |
-| course | onset-rime | [c] + [ourse] | r-controlled | our+se | our=/ɔːr/，ourse 整組=/ɔːrs/，兄弟：source, force |
-| fortune | syllable | [for] + [tune] | r-controlled | or | for=/fɔːr/，tune=/tʃən/（弱化），記：for+tune = 好運 |
-| greenhouse | compound | [green] + [house] | compound | green+house | 綠色的房子，植物的家 |
-| kingdom | morpheme | [king] + [dom] | suffix | -dom | -dom 表領域，兄弟：freedom, wisdom, boredom |
-| magnet | syllable | [mag] + [net] | syllable-pattern | VCCV | 兩母音夾兩輔音（gn），從中間切：mag-net |
-| mistreat | morpheme | [mis] + [treat] | prefix | mis- | mis- 表錯誤，兄弟：mistake, misread, mislead |
-| noble | syllable | [no] + [ble] | syllable-pattern | VCV | 一個輔音夾在兩母音間，輔音歸後（no-ble） |
-| operate | morpheme | [oper] + [ate] | suffix | -ate | -ate 是動詞後綴，兄弟：create, locate, educate |
-| pollute | syllable | [pol] + [lute] | syllable-pattern | VCCV | pol-lute，ll 從中切，lute=/luːt/ |
-| proper | syllable | [prop] + [er] | r-controlled | er | er=/ɜːr/ 弱化音，兄弟：other, better, teacher |
-| royal | syllable | [roy] + [al] | vowel-team | oy | oy=/ɔɪ/，兄弟：boy, joy, toy, loyal, royal |
-| seize | onset-rime | [s] + [eize] | exception | ei=/iː/ | ei 例外發 /iː/，兄弟：either, neither, weird；口訣：weird seize |
+| 分塊分類 | 範例分塊 | 原生 TTS 誤判 | A軌防縮寫映射 | 發音原理 |
+| :--- | :--- | :--- | :--- | :--- |
+| **短母音韻基** | `ig`, `ip`, `et`, `ab`, `ub`, `ot` | I-G, I-P, E-T, A-B, U-B, O-T | `"igg"`, `"ipp"`, `"ett"`, `"abb"`, `"ubb"`, `"aht"` | 雙子音強迫閉音節，禁止 TTS 當縮寫 |
+| **Magic-E 韻基** | `afe`, `ose`, `ase`, `ove` | A-I-F, 唸成全字 safe | `"ayff"`, `"oze"`, `"aze"`, `"uv"` | 用 `ay` 鎖定 `/eɪ/`，用 `z` 鎖定濁擦音 |
+| **感嘆母音** | `ox` 的 `o` | 嘆氣拖音 "ahhh" | `"ah."` (`rate: 1.15`) | 句號強制降調 + 提速，收斂為短音 `/ɑ/` |
+| **首輔音** | `s`, `z`, `b`, `c/k`, `d`, `p` | "S-S-S", 字母名 Bee, Dee | `"suh"`, `"zuh"`, `"buh"`, `"kuh"`, `"duh"`, `"puh"` | 短促清音素，消除連讀重複 |
+| **純尾輔音叢** | `act` 的 `ct`, `add` 的 `dd`, `x` | 唸整字 act, add, ox | `"kt"`, `"duh"`, `"kss"` | 短促爆破音，絕不偷唸整字 |
 
 ---
 
-## 八、給 AI 的操作指令（SOP）
+## 七、「🔗 連音拼讀（Sound-It-Out Blending）」互動時序規範
 
-當收到一個英文單字，要求進行拼讀分塊時，請依以下流程逐步執行：
+連音拼讀是幫助孩子將聲音合體的關鍵互動。
 
 ```
-步驟 1：判斷是否為複合字（Compound）
-  - 問：這個字可以拆成兩個各自有意義的英文字嗎？
-  - YES → 沿詞邊界切，chunkType = "compound"，跳到步驟 5。
-  - NO → 進入步驟 2。
-
-步驟 2：計算音節數
-  - 數音標中的母音核心數量（=音節數）。
-  - 音節數 = 1 → 進入步驟 3（Onset-Rime）。
-  - 音節數 > 1 → 進入步驟 4（先查詞素，再查音節）。
-
-步驟 3：Onset-Rime（單音節字）
-  - 找出母音之前的所有輔音 → 這是 Onset。
-  - 母音加上之後的所有輔音 → 這是 Rime。
-  - 若 Onset 是 digraph 或 cluster → 整組作為一塊。
-  - 若有 magic-e → e 歸 Rime，標記 type = "magic-e"。
-  - 若有 r-controlled 母音 → 整組 r-controlled 歸 Rime，標記 type = "r-controlled"。
-  - 跳到步驟 5。
-
-步驟 4：多音節字的詞素判斷
-  - 查前綴列表：有嗎？→ 切出前綴，chunkType = "morpheme"，標記 type = "prefix"。
-  - 查後綴列表：有嗎？→ 切出後綴，chunkType = "morpheme"，標記 type = "suffix"。
-  - 字根仍多音節？→ 對字根遞歸執行步驟 4。
-  - 字根只剩一個音節？→ 對字根執行步驟 3（Onset-Rime）。
-  - 完全無詞素 → chunkType = "syllable"，套用六大音節規則切分。
-
-步驟 5：填寫 memoryAnchor
-  - 判斷 type（見 6-1 的合法值列表）。
-  - 找出 anchor（最核心的記憶單位，通常是 rime、複合字的兩個字、或前後綴）。
-  - 找出 siblings（3～6 個共享同一 anchor 的其他單字）。
-  - 撰寫 anchorNote（必須包含：①邏輯解釋、②兄弟字、③記憶策略，三段缺一不可）。
-
-步驟 6：輸出 JSON 格式
-  - 依第五節的欄位規範輸出完整 JSON。
+[分塊 1 亮起] ──► 播微音檔 1 ──► onended ──► [70ms 呼吸間隔]
+                                                      │
+[分塊 2 亮起] ◄── 播微音檔 2 ◄── onended ◄─────────────┘
+      │
+[70ms 呼吸間隔]
+      │
+[全體分塊同時亮起 (All Highlight)] ──► [120ms 蓄力停頓] ──► [唸出完整單字 "safe!"]
 ```
 
----
-
-## 九、邊界情況 & 常見誤判防範
-
-| 情況 | 錯誤做法 | 正確做法 |
-|------|---------|---------|
-| `air` 切成 a + ir | ❌ 分開唸會發錯音 | ✅ 整組 air 是 r-controlled 母音，視為一塊 |
-| `child` 的 ch 拆成 c + h | ❌ 分別唸 /k/ + /h/ | ✅ ch 是 digraph，整組發 /tʃ/ |
-| `cold` 切成 co + ld | ❌ 按字面切，沒有利用 word family | ✅ c + old，利用 -old 高頻韻基 |
-| `dove` 當成一般 magic-e | ⚠️ 學生會唸成 /doʊv/ | ✅ 標記為 exception，ove 發 /ʌv/ |
-| `city` 的 c 當 /k/ | ❌ city 的 c 在 i 前發軟音 | ✅ 標記 soft-c，c=/s/ |
-| `calf` 照字面唸出 l | ❌ l 發音 → /kælf/ | ✅ 標記 silent-l，正確發音 /kæf/ |
-| `any` 的 a 當短音 /æ/ | ❌ any 的 a 發 /ɛ/ | ✅ 標記 exception |
-| `cookie` 的 oo 當 /uː/ | ⚠️ cookie 的 oo 是短 /ʊ/ | ✅ 標記 short-oo，區分 moon（/uː/）vs book（/ʊ/）|
-| `fortune` 的 tu 當 /tjuː/ | ⚠️ 正式美式音 tu 弱化為 /tʃə/ | ✅ 標記實際發音 /fɔːrtʃən/ |
-| `absolute` 全走詞素 | ⚠️ ab- 是詞素但 -solute 對小學生無意義 | ✅ 切出 ab- 後，剩餘走音節：so+lute |
+* **單塊高亮**：點擊單一分塊，只播該塊聲音，不高亮其他塊。
+* **微音檔銜接**：透過音檔原生 `onended` 事件驅動，分塊間隔僅留 **70ms** 呼吸感，徹底解決以往固定 `setTimeout(680ms)` 拖泥帶水的節奏問題。
+* **合體頓音**：所有分塊拼完後，全體色塊同時發光高亮，停留 **120ms** 後由 TTS 堅定朗讀整單字，強化合音成就感。
 
 ---
 
-*本文件為 Spelling Bee 學習系統拼讀分塊規範，供 AI 產生單字資料時遵循。*
-*如有新增規則或例外情況，請在此文件末尾補充並標記版本號與日期。*
+## 八、前端 UI 插槽自適應排版與色彩編碼規範
+
+### 8-1 語意角色色彩編碼（Semantic Color Tokens）
+為降低孩子的視覺認知負擔，所有卡片與分塊採用語意統一色彩：
+
+| 語意角色 | 說明 | CSS Class | 視覺色彩 |
+| :--- | :--- | :--- | :--- |
+| **Onset / Prefix** | 首音 / 前綴詞素 | `.chip-role-onset` | 冰藍色（背景 `#dbeafe`，文字 `#1e40af`） |
+| **Rime / Root** | 核心韻基 / 詞根 | `.chip-role-rime` | 暖琥珀黃（背景 `#fef3c7`，文字 `#92400e`） |
+| **Coda** | 尾輔音叢 | `.chip-role-coda` | 蜜桃粉橘（背景 `#ffedd5`，文字 `#9a3412`） |
+| **Compound** | 複合字詞塊 | `.chip-role-compound` | 薰衣草紫（背景 `#f3e8ff`，文字 `#6b21a8`） |
+| **Suffix** | 後綴詞素 | `.chip-role-suffix` | 薄荷綠（背景 `#d1fae5`，文字 `#065f46`） |
+| **Syllable** | 一般音節輪替 | `.chip-color-0~4` | 柔和馬卡龍輪替 |
+
+### 8-2 插槽防折行響應式佈局鐵律
+在聽音拼寫（字母積木模式）中，長單字（6~9 字）若強制固定寬度必會在 iPad 或手機上換行破版。
+
+#### ❌ 錯誤寫法（嚴禁使用）
+```css
+/* 嚴禁在 CSS 中對 slot 寫死固定寬高，特別是 media query */
+.tile-slot { width: 3.5rem; height: 4rem; }
+@media (min-width: 640px) { .tile-slot { width: 4.25rem; } } /* 會覆蓋 JS class 導致 jacket 折行 */
+```
+
+#### ✅ 正確規範
+1. **容器設定**：容器必須具備 `flex-nowrap`, `overflow-x-auto`，並給予 `max-w-full`。
+2. **插槽樣式**：`.tile-slot` 移除固定寬高，加上 `flex-shrink: 0`。
+3. **JS 動態長度分級**：
+   * **3～4 字母單字**（如 `cat`, `dog`, `book`）：
+     `slotSizeClass = "w-14 h-16 sm:w-16 sm:h-20 text-2xl sm:text-3xl"`
+   * **5～6 字母單字**（如 `jacket`, `horse`, `rabbit`）：
+     `slotSizeClass = "w-11 h-14 sm:w-13 sm:h-16 text-xl sm:text-2xl"`（完美一排居中）
+   * **7 字母以上長單字**（如 `elephant`, `dinosaur`, `umbrella`）：
+     `slotSizeClass = "w-9 h-12 sm:w-11 sm:h-14 text-lg sm:text-xl"`
+
+---
+
+## 九、新增單字標準作業程序（New Word SOP）
+
+未來若要新增第 20 週單字或建立新年級題庫，請嚴格依照以下 4 步 SOP 執行：
+
+### 步驟 1：依四大策略切分單字
+填寫單字結構，確認每個 chunk 的 `text` 與標準 `ipa`（標註 roleTag）：
+```javascript
+// 例：新增單字 "rocket"
+"rocket": {
+  "word": "rocket",
+  "chunkType": "syllable",
+  "ipa": "/ˈrɑk.ɪt/",
+  "chunks": [
+    { "text": "rock", "ipa": "/rɑk/", "roleTag": "syllable", "speakMode": "phonetic" },
+    { "text": "et",   "ipa": "/ɪt/",  "roleTag": "syllable", "speakMode": "phonetic" }
+  ],
+  "memoryAnchorType": "word-family",
+  "anchor": "-ocket",
+  "siblings": ["pocket", "socket", "locket"],
+  "uiNote": "rock 發 /rɑk/，et 弱化發 /ɪt/。火箭 rocket，口袋 pocket！"
+}
+```
+
+### 步驟 2：檢查音檔庫是否已有該分塊
+查詢 `data/chunk_audio_map.js` 中是否已有 `rock|/rɑk/` 與 `et|/ɪt/`。若已有，直接共用音檔，不需重新生成！
+
+### 步驟 3：若有新分塊，執行一鍵生成腳本
+在 PowerShell 終端機執行下列微腳本，立即合成新分塊並自動完成 DSP 裁切：
+
+```powershell
+# 1. 使用 SAPI SSML 合成新分塊 WAV
+Add-Type -AssemblyName System.Speech
+$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
+$synth.SelectVoice("Microsoft Zira Desktop")
+$fmt = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(16000, [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen, [System.Speech.AudioFormat.AudioChannel]::Mono)
+
+$newChunkText = "rock"
+$newChunkIpa  = "rɑk" # 記住：不能有空格與斜線
+$rawWav = "audio/chunks/chunk_raw_$newChunkText.wav"
+
+$synth.SetOutputToWaveFile($rawWav, $fmt)
+$ssml = "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><prosody rate='-10%'><phoneme alphabet='ipa' ph='$newChunkIpa'>$newChunkText</phoneme></prosody></speak>"
+$synth.SpeakSsml($ssml)
+$synth.Dispose()
+
+# 2. 呼叫 Python 執行 40ms DSP 裁切與音量正規化
+python -c "
+import numpy as np, os
+from scipy.io import wavfile
+sr, data = wavfile.read('$rawWav')
+thresh = max(120.0, np.max(np.abs(data)) * 0.02)
+idx = np.where(np.abs(data) > thresh)[0]
+if len(idx) > 0:
+    pad = int(sr * 0.04)
+    data = data[max(0, idx[0]-pad):min(len(data), idx[-1]+pad)]
+peak = np.max(np.abs(data))
+if peak > 0:
+    data = np.clip(data.astype(np.float32) * (27000.0 / peak), -32767, 32767).astype(np.int16)
+finalPath = 'audio/chunks/chunk_$newChunkText.wav'
+wavfile.write(finalPath, sr, data)
+os.remove('$rawWav')
+print('音檔生成成功:', finalPath)
+"
+```
+
+### 步驟 4：更新對照表並驗證
+將新分塊加入 `data/chunk_audio_map.js` 與 `data/chunks_data.js`，並於瀏覽器中點擊確認發音與拼讀動畫。
+
+---
+
+## 十、避坑指南（Trap & Solution 完整對照表）
+
+| 案發現場 | 踩坑現象 | 根本原因 | v2.0 終極解法 |
+| :--- | :--- | :--- | :--- |
+| **`safe` 的 `afe`** | 唸成 A-I-F 或整詞 safe | 字典無 `afe` 假字，TTS 當縮寫 | B軌直接採用 `/eɪf/` 專屬音檔；A軌備援用 `"ayff"` |
+| **`pig` 的 `ig`** | 唸成 Instagram 縮寫 "I-G" | 短字串命中大寫縮寫詞庫 | B軌採用 `/ɪɡ/` 專屬音檔；A軌備援用雙子音 `"igg"` |
+| **`ostrich` 的 `os`** | 唸成作業系統 "O-S" | 短字串命中 OS 縮寫庫 | B軌採用 `/ɑs/` 專屬音檔；A軌備援用雙子音 `"ahss"` |
+| **`ox` 的 `o`** | 唸成 "Ahhh~" 嘆氣長音 | 命中英文感嘆詞庫 | B軌採用 `/ɑ/` 專屬音檔；A軌備援用句號收音 `"ah."` |
+| **首音 `s`** | 連唸三次 "S-S-S" | 擬音寫 `'sss'` 被當成連讀字母 | B軌採用 `/s/` 純正擦音；A軌備援用 `'suh'` |
+| **尾音 `act` 的 `ct`** | 偷唸整詞 act 或唸 "C-T" | 輔音無母音，TTS 瞎猜 | B軌採用 `/kt/` 純爆破氣音；A軌備援用 `'kt'` |
+| **`jacket` 積木模式** | 第 6 個插槽掉到第二行 | CSS `@media (min-width: 640px)` 寫死寬度 | 移除 slot 固定寬高，JS 依字長動態指定 `w-11`，容器強制 `flex-nowrap` |
+| **SSML 合成例外** | FormatException 程式崩潰 | `<phoneme ph="...">` 內帶有空白或註解文字 | 清除所有空格、重音符號、斜線及 `+ silent e` 備註 |
+| **微音檔爆音或截斷** | 播放時有喀答聲或吃字 | 裁切邊緣過於陡峭，振幅突變 | DSP 切割保留嚴格 40ms（640 samples）前後過渡緩衝 |
+
+---
+
+*本文件由 DeepMind Antigravity 工程團隊制定，為全專案發音、分塊與排版之最高技術準則。*
