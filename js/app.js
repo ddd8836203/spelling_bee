@@ -1,6 +1,7 @@
 /**
  * ========================================================
  * 🐝 主程式狀態與介面控制器 (App State & Tab Controller)
+ * 支援：Phonics 拼讀分塊 (Onset-Rime / Compound / Morpheme / Syllable)
  * ========================================================
  */
 
@@ -10,25 +11,43 @@ const App = (function() {
         currentTab: 'learn',         // 'learn', 'speak', 'write', 'review'
         currentDatasetKey: 'sb_Part1', // 預設 Spelling Bee Part 1
         wrongWords: [],              // 錯題本 (怪獸本)
-        currentWordList: []          // 當前載入的單字清單
+        currentWordList: [],         // 當前載入的單字清單
+        wordMap: {}                  // id -> wordObj 快速查找表
+    };
+
+    // 分塊策略中文標籤對照
+    const CHUNK_TYPE_LABELS = {
+        'onset-rime': '🧩 首音+韻基',
+        'compound': '🔗 複合字拆詞',
+        'morpheme': '🌱 詞素拆分',
+        'syllable': '🎵 音節拆分',
+        'morpheme + syllable': '🎵 音節+詞素'
     };
 
     // 取得當前資料集的所有單字清單
     function getCurrentWordList() {
         const key = state.currentDatasetKey;
+        let list = [];
         if (key.startsWith('sb_')) {
-            const partName = key.replace('sb_', ''); // e.g. "Part1"
-            return (typeof SPELLING_BEE_DATA !== 'undefined' && SPELLING_BEE_DATA[partName]) || [];
+            const partName = key.replace('sb_', '');
+            list = (typeof SPELLING_BEE_DATA !== 'undefined' && SPELLING_BEE_DATA[partName]) || [];
         } else if (key.startsWith('ww_')) {
-            const weekName = key.replace('ww_', ''); // e.g. "Week_5"
-            return (typeof WEEKLY_WORDS_DATA !== 'undefined' && WEEKLY_WORDS_DATA[weekName]) || [];
+            const weekName = key.replace('ww_', '');
+            list = (typeof WEEKLY_WORDS_DATA !== 'undefined' && WEEKLY_WORDS_DATA[weekName]) || [];
         }
-        return [];
+        list.forEach(item => {
+            state.wordMap[item.id] = item;
+        });
+        return list;
+    }
+
+    // 根據 ID 取得單字物件
+    function getWordById(id) {
+        return state.wordMap[id] || state.wrongWords.find(w => w.id === id) || null;
     }
 
     // 初始化 App
     function init() {
-        // 綁定資料集切換選單
         const datasetSelector = document.getElementById('datasetSelector');
         if (datasetSelector) {
             datasetSelector.addEventListener('change', (e) => {
@@ -36,10 +55,8 @@ const App = (function() {
                 AudioManager.stopAll();
                 AudioManager.playTapSound();
                 
-                // 強制重新獲取該週/單元單字清單 (修復問題 1)
                 state.currentWordList = getCurrentWordList();
                 
-                // 若在測驗分頁，立即重新初始化題目
                 if (state.currentTab === 'speak' || state.currentTab === 'write') {
                     Game.initQuiz(state.currentWordList, state.currentTab);
                 }
@@ -48,7 +65,6 @@ const App = (function() {
             });
         }
 
-        // 綁定導航分頁 Tabs
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const targetTab = btn.getAttribute('data-tab');
@@ -58,7 +74,6 @@ const App = (function() {
             });
         });
 
-        // 預設進入學習分頁
         switchTab('learn');
     }
 
@@ -68,7 +83,6 @@ const App = (function() {
         AudioManager.stopAll();
         AudioManager.playTapSound();
 
-        // 更新 Tab 按鈕高亮
         document.querySelectorAll('.tab-btn').forEach(btn => {
             const isTarget = btn.getAttribute('data-tab') === tabName;
             if (isTarget) {
@@ -80,7 +94,6 @@ const App = (function() {
             }
         });
 
-        // 控制小蜜蜂進度條顯示
         const progressBar = document.getElementById('bee-progress-bar');
         if (progressBar) {
             if (tabName === 'speak' || tabName === 'write') {
@@ -90,10 +103,8 @@ const App = (function() {
             }
         }
 
-        // 即時重新抓取清單
         state.currentWordList = getCurrentWordList();
 
-        // 若切換至遊戲測驗模式，初始化遊戲清單
         if (tabName === 'speak' || tabName === 'write') {
             Game.initQuiz(state.currentWordList, tabName);
         }
@@ -125,7 +136,6 @@ const App = (function() {
 
     // 渲染當前分頁
     function renderCurrentTab() {
-        // 確保任何時候渲染都是最新選擇的週次單字
         state.currentWordList = getCurrentWordList();
 
         const mainContent = document.getElementById('main-content');
@@ -145,6 +155,106 @@ const App = (function() {
     }
 
     // ========================================================
+    // 🧩 產生拼讀分塊 HTML (供學習卡、口說卡、聽寫解答共用)
+    // ========================================================
+    function renderChunksHTML(item, containerId, isUpperCase = false) {
+        const chunks = item.chunks || [];
+        if (chunks.length === 0) {
+            const displayWord = isUpperCase ? item.word.toUpperCase() : item.word;
+            return `
+                <div id="${containerId}" class="flex items-center justify-center flex-wrap gap-1.5">
+                    <button onclick="AudioManager.playTapSound(); AudioManager.speakWord('${item.word}')" 
+                            class="syllable-chip chip-color-0 btn-press">
+                        <span>${displayWord}</span>
+                    </button>
+                </div>
+            `;
+        }
+
+        const buttonsHTML = chunks.map((chunk, i) => {
+            const roleTag = chunk.roleTag || 'syllable';
+            let colorClass = `chip-color-${i % 5}`;
+            if (roleTag === 'onset' || roleTag === 'prefix') colorClass = 'chip-role-onset';
+            else if (roleTag === 'rime' || roleTag === 'root') colorClass = 'chip-role-rime';
+            else if (roleTag === 'coda') colorClass = 'chip-role-coda';
+            else if (roleTag === 'compound') colorClass = 'chip-role-compound';
+            else if (roleTag === 'suffix') colorClass = 'chip-role-suffix';
+
+            const displayText = isUpperCase ? chunk.text.toUpperCase() : chunk.text;
+            const ipaText = chunk.ipa || '';
+
+            return `
+                <button onclick="App.handleChunkTap('${item.id}', ${i}, '${containerId}')" 
+                        data-chunk-idx="${i}"
+                        class="syllable-chip ${colorClass} btn-press"
+                        title="${chunk.role || '點擊聽分塊發音'}">
+                    <span>${displayText}</span>
+                    ${ipaText ? `<span class="chunk-ipa">${ipaText}</span>` : ''}
+                </button>
+            `;
+        }).join('<span class="text-slate-300 font-black text-lg mx-0.5">+</span>');
+
+        return `
+            <div id="${containerId}" class="flex items-center justify-center flex-wrap gap-1">
+                ${buttonsHTML}
+            </div>
+        `;
+    }
+
+    // 點擊單一分塊按鈕發音與動畫
+    function handleChunkTap(wordId, chunkIdx, containerId) {
+        const item = getWordById(wordId);
+        if (!item || !item.chunks || !item.chunks[chunkIdx]) return;
+
+        const chunk = item.chunks[chunkIdx];
+        AudioManager.playTapSound();
+
+        const container = document.getElementById(containerId);
+        if (container) {
+            const btns = container.querySelectorAll('.syllable-chip');
+            btns.forEach((b, idx) => {
+                if (idx === chunkIdx) b.classList.add('chunk-highlight');
+                else b.classList.remove('chunk-highlight');
+            });
+            setTimeout(() => {
+                btns.forEach(b => b.classList.remove('chunk-highlight'));
+            }, 500);
+        }
+
+        AudioManager.speakChunk(chunk, item.word);
+    }
+
+    // 觸發「🔗 連音拼讀」(依序唸每個分塊並高亮 ➔ 最後合起來唸整字)
+    function triggerBlend(wordId, containerId) {
+        const item = getWordById(wordId);
+        if (!item) return;
+
+        const container = document.getElementById(containerId);
+        const btns = container ? container.querySelectorAll('.syllable-chip') : [];
+
+        AudioManager.blendChunks(item, (highlightIdx) => {
+            btns.forEach((btn, i) => {
+                if (highlightIdx === 'all' || i === highlightIdx) {
+                    btn.classList.add('chunk-highlight');
+                } else {
+                    btn.classList.remove('chunk-highlight');
+                }
+            });
+        }, () => {
+            btns.forEach(btn => btn.classList.remove('chunk-highlight'));
+        });
+    }
+
+    // 切換展開老師拼讀小叮嚀與同字族
+    function toggleNoteDrawer(drawerId) {
+        AudioManager.playTapSound();
+        const el = document.getElementById(drawerId);
+        if (el) {
+            el.classList.toggle('hidden');
+        }
+    }
+
+    // ========================================================
     // 📖 學習單字頁面渲染 (Learn Tab)
     // ========================================================
     function renderLearnTab(container) {
@@ -159,14 +269,18 @@ const App = (function() {
             return;
         }
 
+        // 圖例與統計列
         const headerBar = document.createElement('div');
-        headerBar.className = 'flex items-center justify-between bg-white px-5 py-3 rounded-2xl border border-emerald-100 shadow-sm mb-4 pop-in';
+        headerBar.className = 'flex flex-wrap items-center justify-between gap-2 bg-white px-5 py-3.5 rounded-2xl border border-emerald-100 shadow-sm mb-4 pop-in';
         headerBar.innerHTML = `
             <div class="font-black text-emerald-800 text-sm sm:text-base flex items-center gap-2">
-                <span>📚</span> 本單元共 <span class="text-emerald-600 text-lg sm:text-xl">${words.length}</span> 個單字
+                <span>📚</span> 共 <span class="text-emerald-600 text-lg sm:text-xl">${words.length}</span> 個單字
             </div>
-            <div class="text-xs sm:text-sm font-bold text-slate-400">
-                點擊彩色音節可單獨聽聲音喔！
+            <div class="flex flex-wrap items-center gap-2 text-xs font-black">
+                <span class="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 border border-blue-200">首音 Onset</span>
+                <span class="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200">韻基 Rime</span>
+                <span class="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 border border-purple-200">複合詞</span>
+                <span class="text-slate-400 hidden sm:inline">｜點積木聽拆音，點「連音」聽合體！</span>
             </div>
         `;
         container.appendChild(headerBar);
@@ -186,6 +300,7 @@ const App = (function() {
         const card = document.createElement('div');
         card.className = 'bg-white rounded-3xl p-5 shadow-sm border-2 border-slate-100 hover:border-emerald-200 flex flex-col items-center pop-in hover:shadow-md transition-all relative';
         
+        // 左上角分類標籤 (Phonics / Reading Plus)
         const typeBadge = item.type ? `
             <span class="absolute top-4 left-4 text-xs font-black px-2.5 py-1 rounded-full ${
                 item.type === 'Phonics' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
@@ -194,60 +309,104 @@ const App = (function() {
             </span>
         ` : '';
 
-        const syllables = item.syllables || [item.word];
-        const isMultiSyllable = syllables.length > 1;
+        // 右上角分塊策略標籤 (如 首音+韻基)
+        const chunkTypeLabel = item.chunkType ? (CHUNK_TYPE_LABELS[item.chunkType] || item.chunkType) : '';
+        const strategyBadge = chunkTypeLabel ? `
+            <span class="absolute top-4 right-4 text-[11px] font-black px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                ${chunkTypeLabel}
+            </span>
+        ` : '';
 
-        let syllableHTML = '';
-        if (isMultiSyllable) {
-            syllableHTML = syllables.map((syl, i) => {
-                const colorClass = `chip-color-${i % 5}`;
-                return `
-                    <button onclick="AudioManager.playTapSound(); AudioManager.speakSyllable('${syl}')" 
-                            class="syllable-chip ${colorClass} btn-press"
-                            title="點擊單獨聽發音">
-                        ${syl}
-                    </button>
-                `;
-            }).join('<span class="text-slate-300 font-black text-xl mx-0.5">-</span>');
-        } else {
-            syllableHTML = `
-                <button onclick="AudioManager.playTapSound(); AudioManager.speakWord('${item.word}')" 
-                        class="syllable-chip chip-color-0 btn-press text-2xl px-5 py-1.5"
-                        title="點擊單獨聽發音">
-                    ${item.word}
-                </button>
-            `;
-        }
+        const wordCardId = `word-card-${item.id}`;
+        const chunksContainerId = `${wordCardId}-chunks`;
+        const drawerId = `${wordCardId}-drawer`;
 
-        // 採用台灣小學標準：國字右側直排注音 (高度齊平)
+        const chunksHTML = renderChunksHTML(item, chunksContainerId, false);
         const zhuyinHTML = generateZhuyinHTML(item.chinese, "text-2xl sm:text-3xl");
         const chinesePlainText = item.chinese.map(c => c.c).join('');
-        const wordCardId = `word-card-${item.id}`;
+
+        // 特殊發音提示 (如靜音 e、例外音)
+        const specialNoteHTML = item.specialNote ? `
+            <div class="bg-amber-50 border border-amber-200 text-amber-800 text-xs font-black px-3 py-1 rounded-xl mb-2 text-center">
+                ✨ ${item.specialNote}
+            </div>
+        ` : '';
+
+        // 同家族單字按鈕群
+        const siblings = item.siblings || [];
+        const siblingsHTML = siblings.length > 0 ? `
+            <div class="mt-2 pt-2 border-t border-slate-200/70">
+                <div class="text-[11px] font-black text-slate-500 mb-1">
+                    🌱 同字族好朋友 (<span class="text-emerald-700 font-mono">${item.anchor || ''}</span>) — 點擊聽發音：
+                </div>
+                <div class="flex flex-wrap gap-1.5">
+                    ${siblings.map(sib => {
+                        const cleanSib = sib.replace(/（.*?）/g, '').trim();
+                        return `
+                            <button onclick="AudioManager.playTapSound(); AudioManager.speakWord('${cleanSib}')" 
+                                    class="btn-press bg-white hover:bg-emerald-50 text-slate-700 border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-black font-mono shadow-2xs">
+                                🔊 ${sib}
+                            </button>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        ` : '';
 
         card.innerHTML = `
             ${typeBadge}
-            <div class="text-6xl sm:text-7xl mb-3 mt-2">${item.emoji}</div>
+            ${strategyBadge}
+            <div class="text-6xl sm:text-7xl mb-3 mt-6">${item.emoji}</div>
             
-            <div class="flex items-center justify-center flex-wrap gap-1 mb-2">
-                ${syllableHTML}
-            </div>
-            
-            <div id="${wordCardId}-letters" class="text-3xl font-black text-slate-700 tracking-wider font-mono mb-3 min-h-[2.2rem] flex items-center justify-center">
-                ${item.word.split('').map((char, i) => `<span class="letter-span" data-char-index="${i}">${char}</span>`).join('')}
+            <!-- 拼讀分塊積木區 (點各分塊獨立發音) -->
+            <div class="mb-2 w-full">
+                ${chunksHTML}
             </div>
 
-            <div class="flex items-center gap-2 mb-4 w-full justify-center">
+            ${specialNoteHTML}
+            
+            <!-- 整字與音標顯示區 (A-B-C 拼讀時高亮顯示在此) -->
+            <div class="flex items-baseline justify-center gap-2 mb-3">
+                <div id="${wordCardId}-letters" class="text-2xl sm:text-3xl font-black text-slate-700 tracking-wider font-mono flex items-center justify-center">
+                    ${item.word.split('').map((char, i) => `<span class="letter-span" data-char-index="${i}">${char}</span>`).join('')}
+                </div>
+                ${item.ipa ? `<span class="text-xs font-bold text-slate-400 font-mono">${item.ipa}</span>` : ''}
+            </div>
+
+            <!-- 發音控制按鈕列 (聽整字 / 連音拼讀 / A-B-C 拼字 / 拼讀祕訣) -->
+            <div class="flex items-center gap-1.5 sm:gap-2 mb-3 w-full justify-center flex-wrap">
                 <button onclick="AudioManager.speakWord('${item.word}')" 
-                        class="btn-press bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-4 py-2 rounded-2xl font-black text-sm flex items-center gap-1.5 border border-emerald-200">
-                    <svg class="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"></path></svg>
+                        class="btn-press bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-3 py-2 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-1 border border-emerald-200">
+                    <span>🔊</span>
                     <span>聽單字</span>
                 </button>
 
-                <button onclick="App.triggerSpell('${item.word}', '${wordCardId}-letters')" 
-                        class="btn-press bg-fuchsia-100 hover:bg-fuchsia-200 text-fuchsia-800 px-4 py-2 rounded-2xl font-black text-sm flex items-center gap-1.5 border border-fuchsia-200">
-                    <span class="text-base">🔤</span>
-                    <span>拼字母</span>
+                <button onclick="App.triggerBlend('${item.id}', '${chunksContainerId}')" 
+                        class="btn-press bg-amber-100 hover:bg-amber-200 text-amber-900 px-3 py-2 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-1 border border-amber-300">
+                    <span>🔗</span>
+                    <span>連音拼讀</span>
                 </button>
+
+                <button onclick="App.triggerSpell('${item.word}', '${wordCardId}-letters')" 
+                        class="btn-press bg-fuchsia-100 hover:bg-fuchsia-200 text-fuchsia-800 px-3 py-2 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-1 border border-fuchsia-200">
+                    <span>🔤</span>
+                    <span>A-B-C</span>
+                </button>
+
+                ${(item.uiNote || siblings.length > 0) ? `
+                    <button onclick="App.toggleNoteDrawer('${drawerId}')" 
+                            class="btn-press bg-sky-100 hover:bg-sky-200 text-sky-800 px-2.5 py-2 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-1 border border-sky-200"
+                            title="展開老師拼讀小叮嚀与同字族">
+                        <span>💡</span>
+                        <span>祕訣</span>
+                    </button>
+                ` : ''}
+            </div>
+
+            <!-- 老師小叮嚀 & 同字族抽屜 (點擊 💡 祕訣展開) -->
+            <div id="${drawerId}" class="hidden w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 mb-3 text-left text-xs sm:text-sm text-slate-700 font-bold leading-relaxed">
+                ${item.uiNote ? `<div>👩‍🏫 <span class="text-slate-900">${item.uiNote}</span></div>` : ''}
+                ${siblingsHTML}
             </div>
 
             <!-- 底部中文與直排注音 (高度齊平) -->
@@ -285,6 +444,7 @@ const App = (function() {
     }
 
     function addWrongWord(item) {
+        state.wordMap[item.id] = item;
         if (!state.wrongWords.find(w => w.id === item.id)) {
             state.wrongWords.push(item);
             updateMonsterBadge();
@@ -324,33 +484,36 @@ const App = (function() {
                     <span class="text-4xl animate-bounce">👾</span>
                     <div>
                         <h3 class="text-rose-950 font-black text-lg">怪獸抓走了 ${state.wrongWords.length} 個單字！</h3>
-                        <p class="text-rose-700 text-xs sm:text-sm font-bold">點擊「淨化收服」，再次答對就能奪回單字喔！</p>
+                        <p class="text-rose-700 text-xs sm:text-sm font-bold">點分塊練習拼讀，學會後點擊「淨化收服」奪回單字！</p>
                     </div>
                 </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-12">
-                ${state.wrongWords.map(item => `
-                    <div id="monster-card-${item.id}" class="bg-white rounded-3xl p-5 border-2 border-rose-200 shadow-sm flex flex-col items-center pop-in relative hover:shadow-md transition-all">
-                        <div class="text-6xl mb-2">${item.emoji}</div>
-                        <div class="text-3xl font-black text-slate-800 mb-1 font-mono tracking-wider">${item.word}</div>
-                        <div class="mb-4">${generateZhuyinHTML(item.chinese, "text-2xl")}</div>
+                ${state.wrongWords.map(item => {
+                    const chunkContainerId = `monster-chunks-${item.id}`;
+                    return `
+                        <div id="monster-card-${item.id}" class="bg-white rounded-3xl p-5 border-2 border-rose-200 shadow-sm flex flex-col items-center pop-in relative hover:shadow-md transition-all">
+                            <div class="text-6xl mb-2">${item.emoji}</div>
+                            <div class="mb-2 w-full">${renderChunksHTML(item, chunkContainerId, false)}</div>
+                            <div class="text-2xl font-black text-slate-700 mb-2 font-mono tracking-wider">${item.word}</div>
+                            <div class="mb-4">${generateZhuyinHTML(item.chinese, "text-2xl")}</div>
 
-                        <div class="flex gap-2 w-full mt-auto">
-                            <button onclick="AudioManager.speakWord('${item.word}')" class="btn-press flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl text-sm font-black flex items-center justify-center gap-1 border border-slate-200">
-                                <span>🔊</span> 聽音
-                            </button>
-                            <button onclick="App.purifyMonster('${item.id}')" class="btn-press flex-2 bg-rose-500 hover:bg-rose-600 text-white py-2.5 px-4 rounded-xl text-sm font-black flex items-center justify-center gap-1 shadow-sm border-b-2 border-rose-700">
-                                <span>✨</span> 淨化收服
-                            </button>
+                            <div class="flex gap-2 w-full mt-auto">
+                                <button onclick="App.triggerBlend('${item.id}', '${chunkContainerId}')" class="btn-press flex-1 bg-amber-100 hover:bg-amber-200 text-amber-900 py-2.5 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-1 border border-amber-200">
+                                    <span>🔗</span> 連音拼讀
+                                </button>
+                                <button onclick="App.purifyMonster('${item.id}')" class="btn-press flex-1 bg-rose-500 hover:bg-rose-600 text-white py-2.5 px-4 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-1 shadow-sm border-b-2 border-rose-700">
+                                    <span>✨</span> 淨化收服
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                `).join('')}
+                    `;
+                }).join('')}
             </div>
         `;
     }
 
-    // 淨化收服小怪獸
     function purifyMonster(itemId) {
         const card = document.getElementById(`monster-card-${itemId}`);
         AudioManager.playStarSound();
@@ -387,7 +550,6 @@ const App = (function() {
             const char = item.c;
             const pinyin = item.p || '';
             
-            // 拆解注音符號與聲調 (聲調: ˊ ˇ ˋ ˙)
             let tone = '';
             let symbols = [];
             for (let i = 0; i < pinyin.length; i++) {
@@ -417,6 +579,10 @@ const App = (function() {
     return {
         init,
         switchTab,
+        renderChunksHTML,
+        handleChunkTap,
+        triggerBlend,
+        toggleNoteDrawer,
         triggerSpell,
         addWrongWord,
         updateBeeProgress,

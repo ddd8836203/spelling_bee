@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔊 分塊音檔發音實測 (6組魔王單字)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;800;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Nunito', sans-serif; background: #f8fafc; }
+        .chunk-btn { transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .chunk-btn:active, .chunk-active { transform: translateY(-5px) scale(1.12); outline: 3px solid #f43f5e; box-shadow: 0 8px 16px rgba(244,63,94,0.2); }
+    </style>
+</head>
+<body class="p-4 sm:p-8 max-w-4xl mx-auto">
+    <div class="bg-white rounded-3xl p-6 shadow-md border-2 border-indigo-100 mb-6">
+        <h1 class="text-2xl sm:text-3xl font-black text-slate-800 mb-2">🎯 B軌「SSML 國際音標微音檔」vs A軌「防縮寫 TTS」實測</h1>
+        <p class="text-sm font-bold text-slate-600">
+            點擊下方每個色塊可直接聽 <strong>B軌（剛生成的純 IPA 裁切微音檔 .wav）</strong>，也可以點右側按鈕對比 <strong>A軌（瀏覽器雙子音 TTS）</strong>。
+        </p>
+    </div>
+
+    <div id="cards" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+
+    <script>
+        const SAMPLES = [
+            {
+                word: "safe", ipa: "/seɪf/", zh: "安全", emoji: "🛡️🦺",
+                wordWav: "audio/samples/word_safe.wav",
+                chunks: [
+                    { text: "s", ipa: "/s/", wav: "audio/samples/s.wav", ttsOld: "s", ttsNew: "suh", role: "onset" },
+                    { text: "afe", ipa: "/eɪf/", wav: "audio/samples/afe.wav", ttsOld: "aif", ttsNew: "ayff", role: "rime" }
+                ]
+            },
+            {
+                word: "ox", ipa: "/ɑks/", zh: "公牛", emoji: "🐂🌾",
+                wordWav: "audio/samples/word_ox.wav",
+                chunks: [
+                    { text: "o", ipa: "/ɑ/", wav: "audio/samples/o.wav", ttsOld: "ah", ttsNew: "ah.", role: "onset" },
+                    { text: "x", ipa: "/ks/", wav: "audio/samples/x.wav", ttsOld: "ks", ttsNew: "ks", role: "coda" }
+                ]
+            },
+            {
+                word: "pig", ipa: "/pɪɡ/", zh: "豬", emoji: "🐷🐽",
+                wordWav: "audio/samples/word_pig.wav",
+                chunks: [
+                    { text: "p", ipa: "/p/", wav: "audio/samples/p.wav", ttsOld: "puh", ttsNew: "puh", role: "onset" },
+                    { text: "ig", ipa: "/ɪɡ/", wav: "audio/samples/ig.wav", ttsOld: "ig", ttsNew: "igg", role: "rime" }
+                ]
+            },
+            {
+                word: "ostrich", ipa: "/ˈɑs.trɪtʃ/", zh: "鴕鳥", emoji: "🦤🏜️",
+                wordWav: "audio/samples/word_ostrich.wav",
+                chunks: [
+                    { text: "os", ipa: "/ɑs/", wav: "audio/samples/os.wav", ttsOld: "os", ttsNew: "ahss", role: "onset" },
+                    { text: "trich", ipa: "/trɪtʃ/", wav: "audio/samples/trich.wav", ttsOld: "tritch", ttsNew: "tritch", role: "rime" }
+                ]
+            },
+            {
+                word: "rich", ipa: "/rɪtʃ/", zh: "富有的", emoji: "💰💎",
+                wordWav: "audio/samples/word_rich.wav",
+                chunks: [
+                    { text: "r", ipa: "/r/", wav: "audio/samples/r.wav", ttsOld: "ruh", ttsNew: "ruh", role: "onset" },
+                    { text: "ich", ipa: "/ɪtʃ/", wav: "audio/samples/ich.wav", ttsOld: "itch", ttsNew: "itch", role: "rime" }
+                ]
+            },
+            {
+                word: "act", ipa: "/ækt/", zh: "表演", emoji: "🎭🎬",
+                wordWav: "audio/samples/word_act.wav",
+                chunks: [
+                    { text: "a", ipa: "/æ/", wav: "audio/samples/a.wav", ttsOld: "aah", ttsNew: "aah", role: "onset" },
+                    { text: "ct", ipa: "/kt/", wav: "audio/samples/ct.wav", ttsOld: "kt", ttsNew: "kt", role: "coda" }
+                ]
+            }
+        ];
+
+        let currentAudio = null;
+        function playWav(url) {
+            return new Promise((resolve) => {
+                if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
+                if (window.speechSynthesis) window.speechSynthesis.cancel();
+                const audio = new Audio(url);
+                currentAudio = audio;
+                audio.onended = () => resolve();
+                audio.onerror = () => resolve();
+                audio.play().catch(() => resolve());
+            });
+        }
+
+        function playTTS(text, rate = 0.9) {
+            if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
+            window.speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = 'en-US';
+            u.rate = rate;
+            window.speechSynthesis.speak(u);
+        }
+
+        async function blendWav(idx) {
+            const item = SAMPLES[idx];
+            const card = document.getElementById(`sample-card-${idx}`);
+            const btns = card.querySelectorAll('.chunk-btn');
+            for (let i = 0; i < item.chunks.length; i++) {
+                btns.forEach((b, bi) => b.classList.toggle('chunk-active', bi === i));
+                await playWav(item.chunks[i].wav);
+                await new Promise(r => setTimeout(r, 80));
+            }
+            btns.forEach(b => b.classList.add('chunk-active'));
+            await new Promise(r => setTimeout(r, 120));
+            await playWav(item.wordWav);
+            btns.forEach(b => b.classList.remove('chunk-active'));
+        }
+
+        const container = document.getElementById('cards');
+        SAMPLES.forEach((item, idx) => {
+            const div = document.createElement('div');
+            div.id = `sample-card-${idx}`;
+            div.className = "bg-white rounded-3xl p-5 shadow-sm border-2 border-slate-200 flex flex-col items-center";
+            div.innerHTML = `
+                <div class="text-5xl mb-2">${item.emoji}</div>
+                <div class="text-xl font-black text-slate-800 mb-3">${item.word} <span class="text-sm text-slate-400">${item.ipa} (${item.zh})</span></div>
+                
+                <div class="text-xs font-black text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full mb-2">
+                    🔥 B軌：SSML 國際音標微音檔 (.wav) — 點擊試聽：
+                </div>
+                <div class="flex items-center gap-2 mb-3">
+                    ${item.chunks.map(c => `
+                        <button onclick="playWav('${c.wav}')" class="chunk-btn px-5 py-2.5 rounded-2xl font-black text-2xl border-2 ${c.role === 'onset' ? 'bg-blue-100 text-blue-900 border-blue-300' : c.role === 'rime' ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-orange-100 text-orange-900 border-orange-300'} flex flex-col items-center">
+                            <span>${c.text}</span>
+                            <span class="text-xs opacity-75">${c.ipa}</span>
+                        </button>
+                    `).join('<span class="text-slate-300 font-black text-xl">+</span>')}
+                </div>
+
+                <div class="flex gap-2 mb-4">
+                    <button onclick="playWav('${item.wordWav}')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-1.5 rounded-xl font-black text-sm shadow-sm">
+                        🔊 聽整字音檔
+                    </button>
+                    <button onclick="blendWav(${idx})" class="bg-amber-400 hover:bg-amber-500 text-amber-950 px-4 py-1.5 rounded-xl font-black text-sm shadow-sm">
+                        🔗 連音拼讀 (音檔無縫連讀)
+                    </button>
+                </div>
+
+                <div class="w-full pt-3 border-t border-slate-100 flex flex-col items-center">
+                    <div class="text-[11px] font-bold text-slate-400 mb-1.5">對比 A軌 (純瀏覽器 TTS 雙子音擬音備援)：</div>
+                    <div class="flex gap-2 flex-wrap justify-center">
+                        ${item.chunks.map(c => `
+                            <button onclick="playTTS('${c.ttsNew}')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1 rounded-lg text-xs font-bold">
+                                TTS 唸 "${c.ttsNew}" (${c.text})
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    </script>
+</body>
+</html>

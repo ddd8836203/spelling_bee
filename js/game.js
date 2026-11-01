@@ -2,6 +2,7 @@
  * ========================================================
  * 🎮 遊戲引擎核心模組 (Game Engine)
  * 實作三段式互動：字母磁鐵積木拼字、看圖口說、紙筆聽寫
+ * 整合 Phonics 拼讀分塊與連音拼讀 (Sound-It-Out Blending)
  * ========================================================
  */
 
@@ -21,7 +22,6 @@ const Game = (function() {
         isTilesRevealed: false   // 積木模式是否已點「看答案」
     };
 
-    // 常見干擾字母集 (供積木模式使用)
     const DISTRACTOR_LETTERS = ['e', 'a', 's', 't', 'o', 'r', 'i', 'n', 'c', 'l'];
 
     // 初始化/重設測驗
@@ -31,25 +31,22 @@ const Game = (function() {
         state.isAnswerRevealed = false;
         state.isTilesRevealed = false;
         
-        // 洗牌打亂題目順序
         state.list = [...wordList].sort(() => Math.random() - 0.5);
         
         if (state.mode === 'write') {
             if (state.writeSubMode === 'tiles') {
-                setupTilesForCurrentWord(true); // true 表示進入新題目，播放單字發音
+                setupTilesForCurrentWord(true);
             } else {
                 playQuestionWord();
             }
         }
     }
 
-    // 取得當前題目
     function getCurrentItem() {
         if (!state.list || state.currentIndex >= state.list.length) return null;
         return state.list[state.currentIndex];
     }
 
-    // 播放當前題目整詞發音
     function playQuestionWord() {
         const item = getCurrentItem();
         if (item) {
@@ -64,15 +61,12 @@ const Game = (function() {
 
         const item = getCurrentItem();
         if (item) {
-            // 切換時重新朗讀單字
             AudioManager.speakWord(item.word, 0.85);
 
-            // 更新備選積木字母
             state.currentTiles.forEach(tile => {
                 tile.char = state.isUpperCase ? tile.char.toUpperCase() : tile.char.toLowerCase();
             });
 
-            // 更新插槽字母
             state.currentSlots.forEach(slot => {
                 if (slot.char) {
                     slot.char = state.isUpperCase ? slot.char.toUpperCase() : slot.char.toLowerCase();
@@ -100,11 +94,12 @@ const Game = (function() {
         const total = state.list.length;
         const currentNum = state.currentIndex + 1;
         const cardId = `speak-card-${item.id}`;
+        const chunkContainerId = `speak-chunks-${item.id}`;
 
         App.updateBeeProgress(state.currentIndex, total);
 
         const zhuyinHTML = App.generateZhuyinHTML ? App.generateZhuyinHTML(item.chinese, "text-2xl sm:text-3xl") : '';
-        const syllables = item.syllables || [item.word];
+        const chunksHTML = App.renderChunksHTML ? App.renderChunksHTML(item, chunkContainerId, false) : '';
 
         container.innerHTML = `
             <div class="flex flex-col items-center justify-center flex-grow pop-in pb-12">
@@ -130,22 +125,30 @@ const Game = (function() {
                         </button>
                     ` : `
                         <div class="flex flex-col items-center w-full pop-in">
-                            <div class="flex items-center gap-1.5 mb-3 flex-wrap justify-center">
-                                ${syllables.map((syl, i) => `
-                                    <button onclick="AudioManager.speakSyllable('${syl}')" class="syllable-chip chip-color-${i % 5} btn-press">
-                                        ${syl}
-                                    </button>
-                                `).join('<span class="text-slate-300 font-black text-xl">-</span>')}
+                            <div class="mb-3 w-full">
+                                ${chunksHTML}
                             </div>
 
-                            <div class="mb-6 flex items-center justify-center min-h-[3rem]">
+                            ${item.specialNote ? `
+                                <div class="bg-amber-50 border border-amber-200 text-amber-800 text-xs font-black px-3 py-1 rounded-xl mb-2">
+                                    ✨ ${item.specialNote}
+                                </div>
+                            ` : ''}
+
+                            <div class="mb-5 flex items-center justify-center min-h-[3rem]">
                                 ${zhuyinHTML}
                             </div>
 
-                            <button onclick="AudioManager.speakWord('${item.word}')" 
-                                    class="btn-press bg-indigo-100 hover:bg-indigo-200 text-indigo-700 p-4 rounded-full mb-8 border border-indigo-200">
-                                <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"></path></svg>
-                            </button>
+                            <div class="flex items-center gap-3 mb-7">
+                                <button onclick="AudioManager.speakWord('${item.word}')" 
+                                        class="btn-press bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-5 py-3 rounded-2xl font-black text-sm border border-indigo-200 flex items-center gap-1.5">
+                                    <span>🔊</span> 聽整字
+                                </button>
+                                <button onclick="App.triggerBlend('${item.id}', '${chunkContainerId}')" 
+                                        class="btn-press bg-amber-100 hover:bg-amber-200 text-amber-900 px-5 py-3 rounded-2xl font-black text-sm border border-amber-300 flex items-center gap-1.5">
+                                    <span>🔗</span> 連音拼讀
+                                </button>
+                            </div>
 
                             <div class="flex gap-4 w-full">
                                 <button onclick="Game.handleSpeakResult(false, '${cardId}')" 
@@ -217,7 +220,6 @@ const Game = (function() {
 
         App.updateBeeProgress(state.currentIndex, total);
 
-        // 頂部子模式與大小寫切換列
         const subModeSwitchHTML = `
             <div class="flex items-center justify-between mb-4 w-full max-w-lg gap-2">
                 <span class="bg-purple-100 text-purple-900 px-3.5 py-1.5 rounded-full font-black text-xs sm:text-sm border border-purple-200 shrink-0">
@@ -225,7 +227,6 @@ const Game = (function() {
                 </span>
 
                 <div class="flex items-center gap-2">
-                    <!-- 大小寫切換按鈕 (切換並重唸單字) -->
                     <button onclick="Game.toggleCase()" 
                             class="btn-press bg-white hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-2xl font-black text-xs border-2 border-purple-200 shadow-sm flex items-center gap-1"
                             title="切換字母大/小寫並朗讀發音">
@@ -233,7 +234,6 @@ const Game = (function() {
                         <span>${state.isUpperCase ? '大寫 Aa' : '小寫 aA'}</span>
                     </button>
 
-                    <!-- 積木/紙筆切換 -->
                     <div class="flex bg-slate-200 p-1 rounded-2xl text-xs font-black">
                         <button onclick="Game.setWriteSubMode('tiles')" class="px-2.5 py-1 rounded-xl transition-all ${state.writeSubMode === 'tiles' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-600'}">
                             🧩 積木
@@ -299,7 +299,6 @@ const Game = (function() {
         state.isTilesRevealed = false;
         state.isAnswerRevealed = false;
 
-        // 僅在進入新題目時朗讀單字，選字母時不再重覆朗讀
         if (shouldPlayWordAudio) {
             playQuestionWord();
         }
@@ -308,10 +307,13 @@ const Game = (function() {
     function renderTilesMode(container, item, headerHTML) {
         const isAllFilled = state.currentSlots.every(s => s.char !== '');
         const zhuyinHTML = App.generateZhuyinHTML ? App.generateZhuyinHTML(item.chinese, "text-2xl sm:text-3xl") : '';
+        const chunkContainerId = `tiles-reveal-chunks-${item.id}`;
+        const chunksHTML = state.isTilesRevealed && App.renderChunksHTML
+            ? App.renderChunksHTML(item, chunkContainerId, state.isUpperCase)
+            : '';
 
-        // 根據字母長度自適應插槽尺寸，確保永遠排成同一橫排不折行
         const wordLen = item.word.length;
-        let slotSizeClass = "w-14 h-16 sm:w-16 sm:h-20 text-2xl sm:text-3xl"; // 1~4 字
+        let slotSizeClass = "w-14 h-16 sm:w-16 sm:h-20 text-2xl sm:text-3xl";
         let tileSizeClass = "w-14 h-16 sm:w-16 sm:h-20 text-2xl sm:text-3xl";
 
         if (wordLen === 5 || wordLen === 6) {
@@ -328,23 +330,20 @@ const Game = (function() {
 
                 <div id="tiles-card" class="bg-white rounded-[2.5rem] p-5 sm:p-8 shadow-lg border-4 border-purple-200 flex flex-col items-center w-full max-w-lg transition-transform">
                     
-                    <!-- 題目 Emoji 圖示 -->
                     <div class="text-7xl sm:text-8xl mb-2 pop-in">${item.emoji}</div>
 
-                    <!-- 聽聲音大喇叭 -->
                     <button onclick="AudioManager.speakWord('${item.word}')" 
                             class="btn-press bg-purple-500 hover:bg-purple-600 text-white p-4 sm:p-5 rounded-full shadow-md mb-2 transition-colors animate-pulse"
                             title="再聽一次單字發音">
                         <svg class="w-10 h-10 sm:w-12 sm:h-12" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"></path></svg>
                     </button>
                     
-                    <!-- 國字直排注音 (高度齊平) -->
-                    <div class="mb-5 flex items-center justify-center min-h-[3rem]">
+                    <div class="mb-4 flex items-center justify-center min-h-[3rem]">
                         ${zhuyinHTML}
                     </div>
 
-                    <!-- 字母目標插槽列 (橫排不折行) -->
-                    <div id="slots-container" class="flex items-center justify-center gap-1.5 sm:gap-2 mb-6 w-full flex-nowrap overflow-x-auto py-1">
+                    <!-- 字母目標插槽列 -->
+                    <div id="slots-container" class="flex items-center justify-center gap-1.5 sm:gap-2 mb-5 w-full flex-nowrap overflow-x-auto py-1">
                         ${state.currentSlots.map(slot => `
                             <div onclick="${state.isTilesRevealed ? '' : `Game.returnTileFromSlot(${slot.slotIndex})`}" 
                                  class="tile-slot ${slotSizeClass} ${slot.char ? 'filled' : ''} ${state.isTilesRevealed ? 'slot-revealed' : ''} btn-press shrink-0">
@@ -353,20 +352,33 @@ const Game = (function() {
                         `).join('')}
                     </div>
 
-                    <!-- 下方備選字母磁鐵積木池 -->
-                    <div class="bg-slate-50 p-4 sm:p-5 rounded-3xl border-2 border-slate-100 w-full mb-6">
-                        <div class="text-xs font-black text-slate-400 text-center mb-3">
-                            ${state.isTilesRevealed ? '已翻開答案，快把它記下來喔！' : '點擊字母排進空格中：'}
+                    ${!state.isTilesRevealed ? `
+                        <!-- 下方備選字母磁鐵積木池 -->
+                        <div class="bg-slate-50 p-4 sm:p-5 rounded-3xl border-2 border-slate-100 w-full mb-6">
+                            <div class="text-xs font-black text-slate-400 text-center mb-3">
+                                點擊字母排進空格中：
+                            </div>
+                            <div class="flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
+                                ${state.currentTiles.map(tile => `
+                                    <button onclick="Game.placeTileToSlot('${tile.tileId}')" 
+                                            class="letter-tile-btn ${tileSizeClass} bg-white hover:bg-slate-100 text-slate-800 ${tile.isUsed ? 'used' : 'btn-press'}">
+                                        ${tile.char}
+                                    </button>
+                                `).join('')}
+                            </div>
                         </div>
-                        <div class="flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
-                            ${state.currentTiles.map(tile => `
-                                <button onclick="${state.isTilesRevealed ? '' : `Game.placeTileToSlot('${tile.tileId}')`}" 
-                                        class="letter-tile-btn ${tileSizeClass} bg-white hover:bg-slate-100 text-slate-800 ${tile.isUsed || state.isTilesRevealed ? 'used' : 'btn-press'}">
-                                    ${tile.char}
-                                </button>
-                            `).join('')}
+                    ` : `
+                        <!-- 看答案後：展示拼讀分塊與老師小叮嚀，幫助孩子記住怎麼拼 -->
+                        <div class="bg-purple-50/70 p-4 rounded-3xl border-2 border-purple-200 w-full mb-6 flex flex-col items-center pop-in">
+                            <div class="text-xs font-black text-purple-700 mb-2">💡 用拼讀分塊把它記起來（點擊聽拆音）：</div>
+                            <div class="mb-3">${chunksHTML}</div>
+                            <button onclick="App.triggerBlend('${item.id}', '${chunkContainerId}')" 
+                                    class="btn-press bg-amber-100 hover:bg-amber-200 text-amber-900 px-4 py-1.5 rounded-xl font-black text-xs border border-amber-300 mb-2">
+                                🔗 聽連音拼讀
+                            </button>
+                            ${item.uiNote ? `<div class="text-xs font-bold text-slate-600 text-center mt-1">${item.uiNote}</div>` : ''}
                         </div>
-                    </div>
+                    `}
 
                     <!-- 操作按鈕列 -->
                     <div class="flex gap-3 w-full">
@@ -397,7 +409,6 @@ const Game = (function() {
         `;
     }
 
-    // 點擊字母 ➔ 唸所選的字母 (解決問題 1)
     function placeTileToSlot(tileId) {
         if (state.isTilesRevealed) return;
 
@@ -411,19 +422,16 @@ const Game = (function() {
         emptySlot.char = tile.char;
         emptySlot.tileId = tile.tileId;
 
-        // 朗讀所選的字母 (例如選 J 唸 "J")，不唸整個單字！
         AudioManager.speakLetter(tile.char);
 
         const mainContent = document.getElementById('main-content');
         if (mainContent) renderWriteQuiz(mainContent);
 
-        // 全部填滿時做自動檢查
         if (state.currentSlots.every(s => s.char !== '')) {
             setTimeout(checkTilesAnswer, 400);
         }
     }
 
-    // 點擊插槽退回字母
     function returnTileFromSlot(slotIndex) {
         if (state.isTilesRevealed) return;
 
@@ -442,7 +450,6 @@ const Game = (function() {
         if (mainContent) renderWriteQuiz(mainContent);
     }
 
-    // 清除重排
     function resetCurrentTiles() {
         AudioManager.playTapSound();
         setupTilesForCurrentWord(false);
@@ -450,7 +457,6 @@ const Game = (function() {
         if (mainContent) renderWriteQuiz(mainContent);
     }
 
-    // 檢查積木拼字答案
     function checkTilesAnswer() {
         if (state.isTilesRevealed) return;
 
@@ -477,7 +483,7 @@ const Game = (function() {
 
             setTimeout(() => {
                 state.currentIndex++;
-                setupTilesForCurrentWord(true); // 進入下一題，自動朗讀新單字
+                setupTilesForCurrentWord(true);
                 const mainContent = document.getElementById('main-content');
                 if (mainContent) renderWriteQuiz(mainContent);
             }, 1200);
@@ -496,7 +502,6 @@ const Game = (function() {
         }
     }
 
-    // 看答案
     function giveUpAndRevealTiles() {
         const item = getCurrentItem();
         if (!item) return;
@@ -517,11 +522,10 @@ const Game = (function() {
         if (mainContent) renderWriteQuiz(mainContent);
     }
 
-    // 看完答案前進下一題
     function nextTileQuestion() {
         AudioManager.playTapSound();
         state.currentIndex++;
-        setupTilesForCurrentWord(true); // 進入下一題，自動朗讀新單字
+        setupTilesForCurrentWord(true);
         const mainContent = document.getElementById('main-content');
         if (mainContent) renderWriteQuiz(mainContent);
     }
@@ -531,8 +535,9 @@ const Game = (function() {
     // --------------------------------------------------------
     function renderPaperMode(container, item, headerHTML) {
         const zhuyinHTML = App.generateZhuyinHTML ? App.generateZhuyinHTML(item.chinese, "text-2xl sm:text-3xl") : '';
-        const syllables = item.syllables || [item.word];
         const displayWord = state.isUpperCase ? item.word.toUpperCase() : item.word.toLowerCase();
+        const chunkContainerId = `paper-chunks-${item.id}`;
+        const chunksHTML = App.renderChunksHTML ? App.renderChunksHTML(item, chunkContainerId, state.isUpperCase) : '';
 
         container.innerHTML = `
             <div class="flex flex-col items-center justify-center flex-grow pop-in pb-12 w-full">
@@ -554,15 +559,13 @@ const Game = (function() {
                             看答案 👀
                         </button>
                     ` : `
-                        <div class="text-7xl mb-4">${item.emoji}</div>
-                        <div class="text-4xl font-black text-slate-800 tracking-wider mb-2 font-mono">${displayWord}</div>
-                        <div class="flex items-center gap-2 mb-3 flex-wrap justify-center">
-                            ${syllables.map((syl, i) => `
-                                <button onclick="AudioManager.speakSyllable('${syl}')" class="syllable-chip chip-color-${i % 5} btn-press">
-                                    ${state.isUpperCase ? syl.toUpperCase() : syl.toLowerCase()}
-                                </button>
-                            `).join('<span class="text-slate-300 font-black text-xl">-</span>')}
-                        </div>
+                        <div class="text-7xl mb-3">${item.emoji}</div>
+                        <div class="text-4xl font-black text-slate-800 tracking-wider mb-3 font-mono">${displayWord}</div>
+                        <div class="mb-3 w-full">${chunksHTML}</div>
+                        <button onclick="App.triggerBlend('${item.id}', '${chunkContainerId}')" 
+                                class="btn-press bg-amber-100 hover:bg-amber-200 text-amber-900 px-4 py-1.5 rounded-xl font-black text-xs border border-amber-300 mb-4">
+                            🔗 聽連音拼讀
+                        </button>
                         <div class="mb-6 flex items-center justify-center min-h-[3rem]">${zhuyinHTML}</div>
 
                         <div class="flex gap-4 w-full">
@@ -606,14 +609,11 @@ const Game = (function() {
 
         state.currentIndex++;
         state.isAnswerRevealed = false;
-        playQuestionWord(); // 進入下一題朗讀發音
+        playQuestionWord();
         const mainContent = document.getElementById('main-content');
         if (mainContent) renderWriteQuiz(mainContent);
     }
 
-    // ========================================================
-    // 🏆 測驗完成畫面
-    // ========================================================
     function renderQuizFinished(container) {
         AudioManager.playFanfare();
 
